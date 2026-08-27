@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#050607">
+<title>Cogni</title>
+<style>html,body{margin:0;min-height:100%;background:#050607;color:#eef4f4;font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}body{display:grid;place-items:center}.boot{font-size:12px;color:#7f8b91}</style>
+</head>
+<body>
+<div class="boot">Cogni wird geladen …</div>
+<script>
+(async()=>{
+  'use strict';
+  const upstream='https://gggizrrvencvoliwnjtw.supabase.co/functions/v1/cogni-cloud-mesh-preview';
+  try{
+    const response=await fetch(upstream,{cache:'no-store',headers:{Accept:'text/html'}});
+    const html=await response.text();
+    if(!response.ok||!/^\s*<!doctype html>/i.test(html)) throw new Error('invalid release document');
+    document.open();
+    document.write(html);
+    document.close();
+  }catch(error){
+    document.body.innerHTML='<main style="padding:24px">Cogni konnte den Release-Client gerade nicht laden.</main>';
+  }
+})();
+</script>
+</body>
+</html>
