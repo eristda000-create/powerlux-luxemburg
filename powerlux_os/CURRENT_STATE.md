@@ -51,17 +51,19 @@ These are targets, not verified accomplishments.
 
 `FACT` `robots.txt` and `sitemap.xml` currently return 404 on production.
 
+`FACT / P0 DEFECT` Production `/api/sports` currently returns 404. The injected release layer redirects fresh PowerLux Discovery requests to that route and converts failure into an empty synthetic response, so live PowerMap discovery can silently lose fresh place results instead of showing an explicit outage/degraded state. The historical BASE deployment route also returns 404.
+
 `FACT` The public website has extensive functionality, but the current contact form uses a `mailto:` handoff rather than the already-live server-side PowerLux revenue-intake pipeline.
 
 `DONE` Production database hardening now prevents authenticated members from changing their own `profiles.age_group` after account creation. This closes a path by which an under-age account could otherwise attempt to self-escalate into adult-only Radar functionality.
 
 `DONE` `powerlux-public-radar` is now hardened to fail closed when its abuse/rate-limit guard or client network identity is unreliable, rather than serving public Radar output without a dependable protection state.
 
-`DONE / PREVIEW ONLY` `powerlux-preview-v3` is live as a noindex test surface. It tests a smaller/more readable hero, a stronger B2B CTA, safer ranking/PowerMap wording, accessible modal behavior, external-link hardening and server-side lead submission into `powerlux-revenue-intake` with consent and request reference.
+`DONE / PREVIEW ONLY` `powerlux-preview-v3` v2 is live as a noindex test surface. It tests a smaller/more-readable hero, stronger B2B CTA, safer ranking/PowerMap wording, accessible modal behavior, external-link hardening and server-side lead submission with consent. It additionally bypasses the broken production `/api/sports` proxy on the preview by server-side proxying to the existing Discovery Edge Function, and proxies test lead intake same-origin so preview CORS does not invalidate the test.
 
 `OPEN / P0` Do not promote frontend changes by deepening the existing loader chain. First establish canonical source → Git → preview → tests → rollback → production promotion.
 
-Evidence and release gates: `powerlux_os/WEBSITE_AUDIT_2026-09-06.md`.
+Evidence and release gates: `powerlux_os/WEBSITE_AUDIT_2026-09-06.md`; tracked production discovery defect: GitHub Issue #5.
 
 ## Legal / structural truth
 `OPEN` Final entity/legal/tax/insurance configuration is not treated as completed by the source material. The strategy documents discuss company + sport structure/ASBL variants, but implementation requires legal/tax/insurance validation.
@@ -82,7 +84,7 @@ Do not silently merge these into one claim. Treat sport-focus and entity timing 
 4. Hold serious conversations and record every next step/date in CRM.
 5. Select first visible pilot and calculate budget/minimum price.
 6. Check risk, insurance, permit, invoicing/TVA and contract requirements before binding delivery.
-7. **Canonicalize the public website source and deployment chain; keep live security fixes in place; validate and then promote the conversion preview.**
+7. **Canonicalize the public website source/deployment chain and restore fresh PowerMap discovery in production; keep live security fixes in place; validate and then promote the conversion preview.**
 8. Instrument conversion and operational evidence.
 9. Produce a 48-hour review after each real pilot/event.
 10. Convert first proof into a case study/reference and repeatable offer.
