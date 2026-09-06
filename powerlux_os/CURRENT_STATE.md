@@ -99,3 +99,15 @@ When a real event occurs — payment, signed partner, completed pilot, verified 
 - evidence location;
 - KPI impact;
 - next decision.
+
+
+## Implementation update — 2026-09-06
+`DONE / PREVIEW` A canonical Git release branch and draft PR #6 now contain the recovered Hub source, local public assets, direct PowerMap discovery wiring, consented revenue intake and documented release gates. A Vercel preview is READY at https://powerlux-luxembourg-b541pzxdg-eristda000-2732s-projects.vercel.app.
+
+`DONE / LIVE BACKEND` `powerlux-content-engine` v1 creates event/club content packs with captions, a rights-aware shot list, media gates and a Money Engine opportunity. The queue is RLS-enabled with no anon/authenticated table permissions.
+
+`DONE / LIVE BACKEND` Jarvis `merg-jarvis` v7 and `merg-jarvis-chat` v4 expose the content queue and accept an owner-only `event-content: <title>` command. The command creates a gated draft; it does not publish, send outreach or invent event evidence.
+
+`FACT` Revenue Autopilot and its 30-minute engine cycle are active. Current evidence is still `0` inbound leads and `0` affiliate deals, so automation is operational but monetization is not yet proven. The next proof is a real qualified lead, a paid pilot or a rights-cleared event content pack.
+
+`OPEN / P0` Production remains on the recovery chain and `/api/sports` remains 404. PR #6 must pass the release gates before the main domain is promoted.
