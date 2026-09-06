@@ -111,3 +111,11 @@ Answer only six questions:
 4. Which assumption was proven wrong?
 5. What do we stop doing next week?
 6. What are the three P0 actions before the next review?
+
+
+## Implementation update — 2026-09-06
+
+- Website Reliability: **RED / P0 remains** until PR #6 is reviewed, the canonical preview passes the core acceptance tests and the main domain is promoted away from the recovery loader.
+- Revenue automation: **ACTIVE / UNPROVEN**. Revenue Autopilot and the 30-minute engine cycle are running; current database evidence is 0 inbound leads and 0 affiliate deals.
+- Content/opportunity automation: **LIVE / GATED**. Jarvis can create an event-content opportunity and a rights-aware social/content pack. Human approval, media rights and a publishing connector remain required.
+- Next KPI gate: 1 real qualified lead, 1 paid or explicitly value-equivalent pilot, and 1 rights-cleared event content pack.
