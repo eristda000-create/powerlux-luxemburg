@@ -22,6 +22,14 @@ Current delegation rule: only Sean + Tom may bind PowerLux on contracts, ownersh
 **Status:** DECIDED / CURRENT
 **Decision:** Targets, planning ranges and concepts must not be reported as actual results. Real payments, signed deals, completed pilots, telemetry and documented outputs supersede old assumptions.
 
+### D-004 — Canonical website release path
+**Date:** 2026-09-06 website audit
+**Status:** DECIDED / TECHNICAL CONTROL
+**Decision:** New public frontend changes must move toward `canonical source → Git → preview → acceptance tests → known rollback → production`. Do not solve the current recovery-loader problem by adding another production runtime dependency to an old preview/deployment URL.
+**Reason:** The live site currently works through a recovery/loader chain while the connected GitHub repository is not the complete public frontend source and the inspected Vercel project is not Git-linked.
+**Implication:** Safe backend/security fixes may be applied independently when validated. Frontend UX/conversion changes should remain in a noindex preview until canonical source and release control are established.
+**Evidence:** `powerlux_os/WEBSITE_AUDIT_2026-09-06.md`.
+
 ## Open decision gates
 
 ### O-001 — Sport beachhead
@@ -54,9 +62,11 @@ Current delegation rule: only Sean + Tom may bind PowerLux on contracts, ownersh
 **Need:** quantified minimum-price logic and approval rule.
 
 ### O-007 — Website production architecture
-**Status:** OPEN / TECHNICAL
-**Issue:** source material records a live product but the 06.09 technical snapshot also notes recovery/loader architecture, preview dependencies and incomplete alignment between GitHub and live source.
-**Need:** production-source truth, stable deployment path, rollback and core-journey tests.
+**Status:** OPEN / TECHNICAL — REMEDIATION ACTIVE
+**Verified 2026-09-06:** production currently uses a recovery/loader chain; canonical public frontend source is not complete in connected GitHub; Vercel project is not Git-linked; `robots.txt` and `sitemap.xml` are absent.
+**Already fixed live:** profile age-group self-escalation blocked; public Radar guard hardened.
+**Preview ready:** `powerlux-preview-v3` tests conversion, accessibility, safer brand wording and lead intake without changing production.
+**Need to close gate:** recover canonical source, Git-link deployment, prove core journeys, establish rollback, promote validated frontend changes, then remove historical runtime dependencies.
 
 ### O-008 — Brand/IP filing sequence
 **Status:** OPEN
