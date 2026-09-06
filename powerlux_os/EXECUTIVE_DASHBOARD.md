@@ -21,12 +21,20 @@ Can PowerLux turn its existing concept, platform, network and event/product capa
 | First/next paid cooperation | AMBER | payment or signed commercial commitment evidenced |
 | CRM discipline | AMBER | no active lead without next action/date |
 | Event safety/compliance | AMBER | risk/insurance/permit/contract gates complete before delivery |
-| Website reliability | AMBER | production source aligned, critical journeys tested, rollback known |
+| Website reliability | **RED / P0** | restore fresh PowerMap discovery; canonical source in Git; preview core journeys pass; rollback known; production no longer depends at runtime on old deployment HTML |
 | Brand/IP | AMBER | clearance complete and filing/ownership decision recorded |
 | Cash control | AMBER | current 13-week cash view + offer/event contribution economics |
 | Case-study evidence | AMBER | 2+ written references / documented outcomes in near-term target set |
 
-**Important:** AMBER here means the control/evidence package is not yet verified as complete in the current source set. It is not a claim that nothing has been done.
+**Important:** AMBER means the control/evidence package is not yet verified as complete. **RED** is used only because a production-impacting defect has now been directly verified: production `/api/sports` returns 404 while the current release layer routes fresh discovery through that path.
+
+## Website remediation state — 2026-09-06
+- **DONE LIVE:** member self-change of age group blocked in the database.
+- **DONE LIVE:** public Radar guard hardened against unreliable guard/network state.
+- **DONE PREVIEW:** `powerlux-preview-v3` v2 adds B2B lead intake, consent/accessibility hardening and a working test bypass for the broken discovery proxy.
+- **OPEN P0:** canonical production source + Git-linked release chain.
+- **OPEN P0:** restore fresh PowerMap discovery in production.
+- **TRACKING:** GitHub Issues #1–#5 and `powerlux_os/WEBSITE_AUDIT_2026-09-06.md`.
 
 ## 30-day target set from current PowerLux playbook
 - **3–5** pilots
