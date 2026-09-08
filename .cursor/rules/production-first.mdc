@@ -1,0 +1,23 @@
+---
+description: MERG production-first and no-mockup rules
+alwaysApply: true
+---
+
+# MERG Production-First Rule
+
+Before substantive work, read:
+- `/AGENTS.md`
+- `/merg_os/CURRENT_STATE.md`
+- `/merg_os/PROJECT_REGISTRY.md`
+- `/merg_os/PRODUCTION_GATES.md`
+- `/merg_os/TOOL_ROUTER.md`
+- `/merg_os/DEVICE_WORKFLOW.md`
+- `/powerlux_os/CURRENT_STATE.md` when working on PowerLux.
+
+Modify the real existing implementation. Do not create a replacement/mockup/demo when an original product exists or may exist.
+
+If original source cannot be verified, mark the task blocked and recover the source first.
+
+Do not claim live/fixed/deployed/connected/working without checking the real target system.
+
+PowerTV specifically: canonical Git source is not yet verified. Do not reconstruct it from screenshots, copy, scraped text or memory.
