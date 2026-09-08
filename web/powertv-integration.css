@@ -1,0 +1,11 @@
+/* PowerLux ↔ PowerTV network entry points. Functional navigation, not a visual mockup. */
+.plx-network-link{display:inline-flex;align-items:center;gap:3px;min-height:38px;margin-left:10px;padding:0 11px;border:1px solid rgba(25,182,241,.30);background:rgba(3,16,22,.82);text-decoration:none;font:900 11px/1 var(--fontD);letter-spacing:.07em;text-transform:uppercase;white-space:nowrap;transition:.15s ease}
+.plx-network-link:hover,.plx-network-link:focus-visible{outline:none;border-color:var(--cyan);box-shadow:inset 3px 0 0 var(--cyan),0 0 20px rgba(25,182,241,.10);transform:translateY(-1px)}
+.plx-network-link__power{color:#eefbff}.plx-network-link__tv{color:var(--cyan)}.plx-network-link small{margin-left:5px;color:#648794;font-size:8px;letter-spacing:.12em}
+.plx-ptv-side{text-decoration:none;display:flex;align-items:center}.plx-ptv-side:hover{color:#fff;border-left-color:var(--cyan)}
+.plx-ptv-wordmark{font:900 16px/1 var(--fontD);letter-spacing:.03em}.plx-ptv-wordmark b{color:var(--cyan)}.plx-ptv-hero small{margin-left:7px;color:#8aa7b2;font-size:9px}
+.plx-network-account-note{display:none;margin-left:5px;padding:3px 4px;border:1px solid rgba(53,227,168,.22);color:#7ca99b;font-size:7px;letter-spacing:.08em}
+.plx-header-account.is-member .plx-network-account-note{display:inline-block}
+.plx-ptv-mobile{display:flex!important;align-items:center;justify-content:center;text-decoration:none;color:var(--cyan)!important}
+@media(max-width:900px){.plx-network-link--tv{display:none}.plx-ptv-hero{display:inline-flex;align-items:center;justify-content:center}.mobile-nav{grid-template-columns:repeat(6,1fr)!important}.plx-ptv-mobile{font-size:9px}}
+@media(max-width:560px){.plx-ptv-hero small{display:none}.plx-ptv-wordmark{font-size:15px}}
