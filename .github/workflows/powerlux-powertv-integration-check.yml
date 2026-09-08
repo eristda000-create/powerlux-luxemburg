@@ -1,0 +1,42 @@
+name: PowerLux PowerTV Integration Check
+
+on:
+  push:
+    branches:
+      - feature/powerlux-powertv-integration-v1
+  pull_request:
+    paths:
+      - 'web/powertv-integration.js'
+      - 'web/powertv-integration.css'
+      - 'merg_os/POWERLUX_POWERTV_*'
+      - '.github/workflows/powerlux-powertv-integration-check.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: JavaScript syntax
+        run: node --check web/powertv-integration.js
+
+      - name: Enforce canonical runtime link
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Fq 'https://powertv-network.lucienne-ruppert.chatgpt.site' web/powertv-integration.js
+          ! grep -Fq 'powerlux-ui-preview.vercel.app' web/powertv-integration.js
+          ! grep -Fq 'powertv-public' web/powertv-integration.js
+          ! grep -Fq 'powertv-internal' web/powertv-integration.js
+
+      - name: Enforce no fake media contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Fq 'no mockups' merg_os/POWERLUX_POWERTV_20_POINT_EXECUTION.md
+          grep -Fq 'no fake stream state' merg_os/POWERLUX_POWERTV_PRODUCT_CONTRACT.md
+          grep -Fq 'PPV events stay with the official provider' merg_os/POWERLUX_POWERTV_PRODUCT_CONTRACT.md
