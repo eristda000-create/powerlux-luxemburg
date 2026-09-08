@@ -10,12 +10,16 @@
 
 `FACT` A separate private GitHub repository named `eristda000-create/cogni` exists and is accessible with admin/write permission.
 
-`FACT` Supabase has an active healthy project named `Cogni` plus one additional active healthy general project. Internal project refs/hosts are deliberately not duplicated into this public repository.
+`FACT` Supabase management access on 2026-09-08 verified an active healthy project named `Cogni` plus one additional active healthy general project. Internal project refs/hosts are deliberately not duplicated into this public repository.
+
+`FACT` Authenticated Vercel management access on 2026-09-08 verified the connected Vercel team and the real `powerlux-luxembourg` project with a READY latest deployment. A public `*.vercel.app` hostname must still not be assumed to belong to that connected team without project/deployment evidence.
 
 ## PowerLux
 `FACT` Canonical Git repository: `eristda000-create/powerlux-luxemburg`.
 
 `FACT` Known production hostname: `powerlux-luxembourg.vercel.app`.
+
+`FACT` Authenticated Vercel management verification on 2026-09-08 confirmed the `powerlux-luxembourg` project and a READY latest deployment in the connected team.
 
 `FACT` The existing PowerLux state documents record unresolved production/release-chain issues, including the need to canonicalize source → Git → preview → tests → rollback → production.
 
@@ -30,7 +34,13 @@
 
 `FACT` Previous ad-hoc Vercel deployments named around `powertv-internal`, `powertv-public` and `powertv-network` were not a verified migration of the real PowerTV source and must NOT be treated as canonical PowerTV.
 
+`FACT` Authenticated Vercel lookups on 2026-09-08 for `powertv-public`, `powertv-internal` and `powertv-network` returned not found in the connected team. No canonical PowerTV Vercel project was recovered there.
+
+`FACT` Targeted File Library searches on 2026-09-08 did not recover a PowerTV source/export package.
+
 `DONE` An incorrect static PowerTV replacement that had been committed under `powertv/index.html` was removed from this repository on 2026-09-08.
+
+`DONE` A verified recovery ledger was added at `merg_os/POWERTV_SOURCE_RECOVERY.md`; it records checked GitHub/Vercel/File-Library paths and the exact criteria required before PowerTV may be called source-verified.
 
 `OPEN / P0` Recover or export the ORIGINAL PowerTV source/project from ChatGPT Sites, then establish canonical Git source and only after that deploy to a neutral production hostname.
 
@@ -39,9 +49,13 @@
 ## Cogni / Diffuse
 `FACT` Canonical Git repository currently verified: `eristda000-create/cogni` (private).
 
+`FACT` The canonical Cogni repository's `AGENTS.md` and `README.md` were re-verified through authenticated GitHub access on 2026-09-08. The README records the canonical public host `https://cogni-release.vercel.app` and the multi-model release policy.
+
+`DONE` A private-repo-native hourly source integrity watcher was added on 2026-09-08 at `.github/workflows/cogni-source-integrity.yml` in `eristda000-create/cogni`. It uses that repository's own GitHub token, checks canonical source markers plus live Cogni identity, and opens/updates/closes a `Cogni Source Integrity Alert` issue without requiring a cross-repo personal token.
+
 `FACT` A Supabase project named `Cogni` is active and healthy.
 
-`OPEN` Vercel canonical production project/domain for Cogni must be verified from Vercel before making release claims.
+`UNVERIFIED` The public `cogni-release.vercel.app` runtime is known and independently reachable, but direct authenticated lookup of project/deployment `cogni-release` in the currently connected Vercel team returned not found on 2026-09-08. Therefore its Vercel account/team ownership remains unresolved and must not be guessed.
 
 `RULE` Cogni-specific state should live in the Cogni repository; this file stores only cross-project truth.
 
