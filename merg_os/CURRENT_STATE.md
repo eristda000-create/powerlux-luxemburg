@@ -51,9 +51,13 @@
 
 `FACT` The canonical Cogni repository's `AGENTS.md` and `README.md` were re-verified through authenticated GitHub access on 2026-09-08. The README records the canonical public host `https://cogni-release.vercel.app` and the multi-model release policy.
 
-`DONE` A private-repo-native hourly source integrity watcher was added on 2026-09-08 at `.github/workflows/cogni-source-integrity.yml` in `eristda000-create/cogni`. It uses that repository's own GitHub token, checks canonical source markers plus live Cogni identity, and opens/updates/closes a `Cogni Source Integrity Alert` issue without requiring a cross-repo personal token.
+`DONE` A private-repo-native hourly source integrity watcher exists at `.github/workflows/cogni-source-integrity.yml` in `eristda000-create/cogni`. It uses that repository's own GitHub token and does not require a cross-repo personal token.
 
-`FACT` A Supabase project named `Cogni` is active and healthy.
+`OPEN / P0` Authenticated verification on 2026-09-08 found real Cogni source/runtime drift: canonical Git `cogni-ui-cognition` declares `ui-cognition-v21-event-only`, while the deployed Supabase Edge Function is ACTIVE version 30 and identifies as `ui-cognition-v30-jarvis-standalone`. Existing `Cogni Release Gate` failed specifically on the deployed Cognition UI health check while preceding source invariants and Core Status passed. The hourly integrity watcher now checks this exact contract and opened the automatically managed GitHub alert `eristda000-create/cogni#132`.
+
+`RULE` Do not silently roll back or bless deployed Cogni v30. Reconcile whether it is an intentional Jarvis extension that must be represented in canonical Git while preserving single-owner/presentation-only invariants, or an out-of-band runtime deployment that must be reverted.
+
+`FACT` A Supabase project named `Cogni` is active and healthy at the management/project level; that does not override the function-level source/runtime drift above.
 
 `UNVERIFIED` The public `cogni-release.vercel.app` runtime is known and independently reachable, but direct authenticated lookup of project/deployment `cogni-release` in the currently connected Vercel team returned not found on 2026-09-08. Therefore its Vercel account/team ownership remains unresolved and must not be guessed.
 
