@@ -11,6 +11,17 @@
 - Badge changed to `EVENT ENDED`.
 - Result: it can no longer produce a stale public LIVE card.
 
+## Automatic stale-LIVE protection
+
+A production Supabase migration `powertv_expire_stale_live_v1` now provides `public.powertv_expire_stale_live()` and an active pg_cron job:
+- job: `powertv-expire-stale-live`
+- schedule: `7 * * * *`
+- behavior: any still-published `content_type='live'` row with a non-null `ends_at` in the past is unpublished, marked `EVENT ENDED`, and timestamped.
+- the function is `SECURITY INVOKER` and its API execution privilege is revoked from `public`, `anon`, and `authenticated`.
+- immediate post-migration test returned `0` stale rows, confirming the cleaned feed had no remaining eligible stale LIVE entries.
+
+This does not automatically promote an `upcoming` event to LIVE: broadcast/playability still requires explicit verification.
+
 ## Upcoming Luxembourg correction applied
 
 ### Western European Classic & Equipped Powerlifting Championships
@@ -61,4 +72,4 @@ Before adding or changing a `live` item, verify all of:
 2. an official provider/source exists;
 3. playable/live availability is verified separately from event timing;
 4. rights wording is correct;
-5. end-of-event transition is planned.
+5. `ends_at` is populated so the automated lifecycle can terminate stale LIVE state.
