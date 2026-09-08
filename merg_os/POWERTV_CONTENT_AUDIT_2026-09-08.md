@@ -22,6 +22,21 @@ A production Supabase migration `powertv_expire_stale_live_v1` now provides `pub
 
 This does not automatically promote an `upcoming` event to LIVE: broadcast/playability still requires explicit verification.
 
+## LIVE write truth gate
+
+A second production migration `powertv_live_truth_guard_v1` adds a BEFORE INSERT/UPDATE trigger on `powertv_content`.
+
+A published row with `content_type='live'` now requires all of:
+- `starts_at` and `ends_at`;
+- future `ends_at`;
+- non-empty official/provider URL;
+- non-empty rights note;
+- `metadata.live_verified = true`.
+
+If the event has already ended, the trigger automatically unpublishes it and marks it `EVENT ENDED` instead of allowing a stale public LIVE state. Missing verification/source/rights evidence raises a database error and blocks the write.
+
+The guard was tested by attempting, inside an exception-isolated database subtransaction, to promote the Western European event to `live` without `live_verified`. The expected `POWERTV_LIVE_REQUIRES_EXPLICIT_VERIFICATION` guard fired and the real row remained unchanged as `upcoming`.
+
 ## Upcoming Luxembourg correction applied
 
 ### Western European Classic & Equipped Powerlifting Championships
@@ -65,6 +80,8 @@ Official PWFL source:
 - 0 published rows currently claiming `content_type=live`.
 - 7 published armwrestling records.
 - 5 published records with a Luxembourg location string.
+- stale LIVE expiry is automatic.
+- new public LIVE writes are database-gated by explicit source/rights/verification evidence.
 
 ## Next catalog gate
 Before adding or changing a `live` item, verify all of:
@@ -72,4 +89,5 @@ Before adding or changing a `live` item, verify all of:
 2. an official provider/source exists;
 3. playable/live availability is verified separately from event timing;
 4. rights wording is correct;
-5. `ends_at` is populated so the automated lifecycle can terminate stale LIVE state.
+5. `ends_at` is populated so the automated lifecycle can terminate stale LIVE state;
+6. `metadata.live_verified=true` is deliberately set only after the playable source has been checked.
