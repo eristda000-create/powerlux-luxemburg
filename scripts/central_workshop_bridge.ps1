@@ -33,6 +33,11 @@ if (Test-Path -LiteralPath $LocalAgentHelper -PathType Leaf) {
   . $LocalAgentHelper
 }
 
+$LocalAutonomyHelper = Join-Path $PSScriptRoot 'central_local_agent_autonomy.ps1'
+if (Test-Path -LiteralPath $LocalAutonomyHelper -PathType Leaf) {
+  . $LocalAutonomyHelper
+}
+
 $TokenCachePath = [Environment]::GetEnvironmentVariable('CENTRAL_WORKSHOP_TOKEN_CACHE')
 if ([string]::IsNullOrWhiteSpace($TokenCachePath)) {
   $TokenCachePath = Join-Path (Join-Path $HOME '.central') 'workshop-auth.json'
@@ -164,7 +169,8 @@ function Invoke-CentralBridge([string]$Action, [hashtable]$Payload) {
 
 function Get-WorkshopTests {
   $tests = [ordered]@{
-    powershell = 'ok'; ollama = 'error'; obsidian = 'not_configured'; git = 'not_checked'; local_agents = 'not_loaded';
+    powershell = 'ok'; ollama = 'error'; obsidian = 'not_configured'; git = 'not_checked';
+    local_agents = 'not_loaded'; local_autonomy = 'not_loaded'; supervisor = 'not_verified';
     node_id = $NodeId; computer_name = $HostName; powershell_version = $PSVersionTable.PSVersion.ToString()
   }
   try {
@@ -182,6 +188,27 @@ function Get-WorkshopTests {
   } else {
     $tests.local_agents = 'error'
     $tests.local_agents_error = 'central_local_agent_team.ps1 is missing or failed to load.'
+  }
+
+  if ($null -ne (Get-Command Invoke-CentralLocalAutonomy -ErrorAction SilentlyContinue)) {
+    $tests.local_autonomy = 'ok'
+  } else {
+    $tests.local_autonomy = 'error'
+    $tests.local_autonomy_error = 'central_local_agent_autonomy.ps1 is missing or failed to load.'
+  }
+
+  $supervisorStatus = Join-Path (Join-Path $HOME '.central') 'supervisor-status.json'
+  if (Test-Path -LiteralPath $supervisorStatus -PathType Leaf) {
+    try {
+      $s = Get-Content -LiteralPath $supervisorStatus -Raw | ConvertFrom-Json
+      $age = [DateTimeOffset]::UtcNow - [DateTimeOffset]::Parse([string]$s.timestamp)
+      if ($age.TotalMinutes -le 2 -and [bool]$s.bridge_running) {
+        $tests.supervisor = 'ok'
+        $tests.supervisor_pid = $s.supervisor_pid
+      } else {
+        $tests.supervisor = 'stale'
+      }
+    } catch { $tests.supervisor = 'error'; $tests.supervisor_error = $_.Exception.Message }
   }
 
   if (-not [string]::IsNullOrWhiteSpace($ObsidianVault)) {
@@ -203,6 +230,8 @@ function Send-Heartbeat($Tests) {
     obsidian_configured=-not [string]::IsNullOrWhiteSpace($ObsidianVault);
     workdir_configured=-not [string]::IsNullOrWhiteSpace($WorkDir);
     local_agents_available=($Tests.local_agents -eq 'ok');
+    local_autonomy_available=($Tests.local_autonomy -eq 'ok');
+    supervisor_verified=($Tests.supervisor -eq 'ok');
     bridge_script='scripts/central_workshop_bridge.ps1'; token_cache_windows_dpapi=$IsWindows
   }
   return Invoke-CentralBridge 'heartbeat' @{ node_id=$NodeId; runtime=$runtime }
@@ -247,7 +276,11 @@ function Invoke-WorkshopTask([object]$Task, $Tests) {
       if ($null -eq (Get-Command Invoke-CentralLocalAgentTeam -ErrorAction SilentlyContinue)) {
         throw 'Local agent helper is not loaded.'
       }
-      return @{ verified=$true; result=(Invoke-CentralLocalAgentTeam -Payload $Task.payload -WorkDir $WorkDir -ObsidianVault $ObsidianVault -OllamaUrl $OllamaUrl -ConfiguredModel $ConfiguredModel -DetectedModel $script:DetectedOllamaModel) }
+      $teamResult = Invoke-CentralLocalAgentTeam -Payload $Task.payload -WorkDir $WorkDir -ObsidianVault $ObsidianVault -OllamaUrl $OllamaUrl -ConfiguredModel $ConfiguredModel -DetectedModel $script:DetectedOllamaModel
+      if ($null -ne (Get-Command Invoke-CentralLocalAutonomy -ErrorAction SilentlyContinue)) {
+        $teamResult['autonomy'] = Invoke-CentralLocalAutonomy -Payload $Task.payload -TeamResult $teamResult -WorkDir $WorkDir -ObsidianVault $ObsidianVault -OllamaUrl $OllamaUrl -ConfiguredModel $ConfiguredModel -DetectedModel $script:DetectedOllamaModel
+      }
+      return @{ verified=$true; result=$teamResult }
     }
     'git_status' { return @{ verified=$true; result=(Invoke-GitStatus) } }
     'git_diff' { return @{ verified=$true; result=(Invoke-GitDiff) } }
