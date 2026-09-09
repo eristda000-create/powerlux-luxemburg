@@ -131,7 +131,8 @@ The repository implementation consists of:
 - `.github/workflows/merg-value-engine.yml` — scheduled public discovery and actionable GitHub audit queue;
 - `supabase/migrations/20260909103600_merg_value_engine_cycle.sql` — canonical backend cycle;
 - `supabase/migrations/20260909103800_merg_value_engine_title_limit_fix.sql` — canonical 180-character work-item title fix;
-- `supabase/migrations/20260909111500_merg_value_engine_policy_sources.sql` — canonical policy and cross-project source registration.
+- `supabase/migrations/20260909111500_merg_value_engine_policy_sources.sql` — canonical policy and cross-project source registration;
+- `supabase/migrations/20260909112500_merg_social_revenue_brief_cycle.sql` — automatic Instagram-first revenue brief generation from MONEY work items.
 
 Workflow artifacts are:
 - `value_engine_report.md`;
@@ -139,7 +140,7 @@ Workflow artifacts are:
 - `value_engine_queue.ndjson`.
 
 ## Verified production backend — 2026-09-09
-The Value Engine is now integrated with the existing MERG control plane rather than a parallel database.
+The Value Engine is integrated with the existing MERG control plane rather than a parallel database.
 
 Verified production facts:
 - `merg_ai_policy.value_engine` is enabled.
@@ -147,7 +148,7 @@ Verified production facts:
 - It writes deduplicated internal work to the existing `core_engine_work_items` table.
 - It logs each run to `core_engine_runs`.
 - `pg_cron` job `merg-value-engine-cycle` is active at `8,38 * * * *` and calls `public.merg_value_engine_cycle()` every 30 minutes.
-- Seven cross-project watch sources were registered for PowerLux sponsorship/sport, PowerTV rights/media, creator monetization, EU sport funding, Cogni AI/sports research and patent/prior-art research.
+- Seven cross-project watch sources are registered for PowerLux sponsorship/sport, PowerTV rights/media, creator monetization, EU sport funding, Cogni AI/sports research and patent/prior-art research.
 - The function has `EXECUTE` revoked from `public`, `anon` and `authenticated`.
 - The function never performs external execution; it only creates internal work items.
 
@@ -155,6 +156,36 @@ Live verification:
 - first verified run: `24` MONEY work items and `5` KNOWLEDGE work items created;
 - immediate second run: `0` MONEY and `0` KNOWLEDGE created, proving idempotent deduplication against the same inputs;
 - current stored Value Engine work items: `24` MONEY + `5` KNOWLEDGE.
+
+## Social Revenue Brief Layer — verified 2026-09-09
+`public.merg_social_revenue_brief_cycle()` converts MONEY work items into internal social-revenue briefs without publishing externally.
+
+Each brief stores:
+- Instagram as the primary channel;
+- optional LinkedIn/Facebook secondary channels;
+- monetization objective;
+- target audience;
+- fact-bound hook;
+- caption draft;
+- CTA;
+- source URL;
+- monetization hypothesis;
+- KPIs: qualified DMs, tracked clicks, qualified leads, conversions and attributed revenue;
+- claims/rights rules;
+- explicit publish gate.
+
+The content logic changes by opportunity type:
+- referral -> affiliate/referral conversion + `DM "INFO"`;
+- sponsorship -> sponsor lead generation + `DM "PARTNER"`;
+- supplier/surplus -> buyer demand capture before commitment/inventory + `DM "BUYER"`;
+- other -> qualified lead capture.
+
+Production verification:
+- first social cycle created `24` social revenue briefs from the existing `24` MONEY items;
+- immediate second run created `0`, proving idempotent deduplication;
+- `pg_cron` job `merg-social-revenue-brief-cycle` runs at `12,42 * * * *`, shortly after the Value Engine cycle;
+- `external_execution=false` for every brief;
+- publishing remains blocked until human approval, source verification and a real authenticated publisher connection exist.
 
 The existing broader MERG/PowerLux database still has project-wide Supabase advisor findings that predate this change. They remain a separate hardening backlog and are not evidence that the Value Engine introduced a new RLS or SECURITY DEFINER exposure.
 
@@ -170,8 +201,8 @@ The Value Engine is therefore the prioritization and value-routing layer above t
 
 ## Next adapters
 Priority order from this point:
-1. connect a real social scheduler/publisher + analytics account so approved content can move from draft to measured distribution;
-2. feed Value Engine outputs into `powerlux-content-engine` for sponsor/content opportunities where evidence and rights gates are met;
+1. connect a real social scheduler/publisher + analytics account so approved revenue briefs can move from draft to measured distribution;
+2. feed event/sponsor Value Engine outputs into `powerlux-content-engine` where evidence and rights gates are met;
 3. enrich CRM/email commercial actions with Value Engine priority and monetization hypotheses while preserving existing send-approval policy;
 4. attach verified affiliate/deal tracking and revenue attribution;
 5. route suitable media opportunities to the canonical PowerTV editorial pipeline once the original PowerTV source is recovered;
