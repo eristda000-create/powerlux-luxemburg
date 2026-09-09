@@ -28,6 +28,11 @@ $WorkDir = [Environment]::GetEnvironmentVariable('CENTRAL_WORKDIR')
 $ConfiguredModel = [Environment]::GetEnvironmentVariable('CENTRAL_OLLAMA_MODEL')
 $script:DetectedOllamaModel = $null
 
+$LocalAgentHelper = Join-Path $PSScriptRoot 'central_local_agent_team.ps1'
+if (Test-Path -LiteralPath $LocalAgentHelper -PathType Leaf) {
+  . $LocalAgentHelper
+}
+
 $TokenCachePath = [Environment]::GetEnvironmentVariable('CENTRAL_WORKSHOP_TOKEN_CACHE')
 if ([string]::IsNullOrWhiteSpace($TokenCachePath)) {
   $TokenCachePath = Join-Path (Join-Path $HOME '.central') 'workshop-auth.json'
@@ -159,7 +164,7 @@ function Invoke-CentralBridge([string]$Action, [hashtable]$Payload) {
 
 function Get-WorkshopTests {
   $tests = [ordered]@{
-    powershell = 'ok'; ollama = 'error'; obsidian = 'not_configured'; git = 'not_checked';
+    powershell = 'ok'; ollama = 'error'; obsidian = 'not_configured'; git = 'not_checked'; local_agents = 'not_loaded';
     node_id = $NodeId; computer_name = $HostName; powershell_version = $PSVersionTable.PSVersion.ToString()
   }
   try {
@@ -171,6 +176,13 @@ function Get-WorkshopTests {
       $script:DetectedOllamaModel = [string]$models[0]
     }
   } catch { $tests.ollama_error = $_.Exception.Message }
+
+  if ($null -ne (Get-Command Invoke-CentralLocalAgentTeam -ErrorAction SilentlyContinue)) {
+    $tests.local_agents = 'ok'
+  } else {
+    $tests.local_agents = 'error'
+    $tests.local_agents_error = 'central_local_agent_team.ps1 is missing or failed to load.'
+  }
 
   if (-not [string]::IsNullOrWhiteSpace($ObsidianVault)) {
     if (Test-Path -LiteralPath $ObsidianVault -PathType Container) { $tests.obsidian = 'ok'; $tests.obsidian_vault = $ObsidianVault }
@@ -190,6 +202,7 @@ function Send-Heartbeat($Tests) {
     platform=$platform; powershell_version=$Tests.powershell_version; ollama_url=$OllamaUrl;
     obsidian_configured=-not [string]::IsNullOrWhiteSpace($ObsidianVault);
     workdir_configured=-not [string]::IsNullOrWhiteSpace($WorkDir);
+    local_agents_available=($Tests.local_agents -eq 'ok');
     bridge_script='scripts/central_workshop_bridge.ps1'; token_cache_windows_dpapi=$IsWindows
   }
   return Invoke-CentralBridge 'heartbeat' @{ node_id=$NodeId; runtime=$runtime }
@@ -230,9 +243,15 @@ function Invoke-WorkshopTask([object]$Task, $Tests) {
   switch ($action) {
     'bridge_self_test' { return @{ verified=$true; result=@{ action=$action; tests=$Tests } } }
     'ollama_prompt' { return @{ verified=$true; result=(Invoke-OllamaPrompt $Task.payload) } }
+    'local_agent_team' {
+      if ($null -eq (Get-Command Invoke-CentralLocalAgentTeam -ErrorAction SilentlyContinue)) {
+        throw 'Local agent helper is not loaded.'
+      }
+      return @{ verified=$true; result=(Invoke-CentralLocalAgentTeam -Payload $Task.payload -WorkDir $WorkDir -ObsidianVault $ObsidianVault -OllamaUrl $OllamaUrl -ConfiguredModel $ConfiguredModel -DetectedModel $script:DetectedOllamaModel) }
+    }
     'git_status' { return @{ verified=$true; result=(Invoke-GitStatus) } }
     'git_diff' { return @{ verified=$true; result=(Invoke-GitDiff) } }
-    default { return @{ verified=$false; result=@{ action=$action; error='Unsupported action. CENTRAL Workshop v1 does not execute arbitrary remote PowerShell commands.' } } }
+    default { return @{ verified=$false; result=@{ action=$action; error='Unsupported action. CENTRAL Workshop does not execute arbitrary remote PowerShell commands.' } } }
   }
 }
 
