@@ -14,7 +14,12 @@ function Get-EnvRequired([string]$Name) {
 }
 
 $SupabaseUrl = (Get-EnvRequired 'CENTRAL_SUPABASE_URL').TrimEnd('/')
-$ServiceRoleKey = Get-EnvRequired 'CENTRAL_SUPABASE_SERVICE_ROLE_KEY'
+$PublishableKey = Get-EnvRequired 'CENTRAL_SUPABASE_PUBLISHABLE_KEY'
+$OwnerEmail = [Environment]::GetEnvironmentVariable('CENTRAL_SUPABASE_EMAIL')
+if ([string]::IsNullOrWhiteSpace($OwnerEmail)) {
+  $OwnerEmail = Read-Host 'CENTRAL owner email'
+}
+
 $NodeId = [Environment]::GetEnvironmentVariable('CENTRAL_WORKSHOP_NODE_ID')
 if ([string]::IsNullOrWhiteSpace($NodeId)) {
   $NodeId = "$env:COMPUTERNAME-$env:USERNAME"
@@ -29,14 +34,80 @@ $WorkDir = [Environment]::GetEnvironmentVariable('CENTRAL_WORKDIR')
 $DefaultModel = [Environment]::GetEnvironmentVariable('CENTRAL_OLLAMA_MODEL')
 if ([string]::IsNullOrWhiteSpace($DefaultModel)) { $DefaultModel = 'llama3.2' }
 
-$Headers = @{
-  apikey = $ServiceRoleKey
-  Authorization = "Bearer $ServiceRoleKey"
+$script:AccessToken = $null
+$script:RefreshToken = $null
+$script:TokenExpiresAt = [DateTimeOffset]::MinValue
+
+function Convert-SecureStringToPlain([Security.SecureString]$Secure) {
+  $ptr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($Secure)
+  try {
+    return [Runtime.InteropServices.Marshal]::PtrToStringBSTR($ptr)
+  } finally {
+    [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($ptr)
+  }
+}
+
+function Set-AuthTokens($Response) {
+  $script:AccessToken = [string]$Response.access_token
+  $script:RefreshToken = [string]$Response.refresh_token
+  $expiresIn = 3600
+  if ($null -ne $Response.expires_in) { $expiresIn = [int]$Response.expires_in }
+  $script:TokenExpiresAt = [DateTimeOffset]::UtcNow.AddSeconds($expiresIn)
+}
+
+function Login-CentralOwner {
+  $password = [Environment]::GetEnvironmentVariable('CENTRAL_SUPABASE_PASSWORD')
+  if ([string]::IsNullOrWhiteSpace($password)) {
+    $secure = Read-Host 'CENTRAL owner password' -AsSecureString
+    $password = Convert-SecureStringToPlain $secure
+  }
+
+  try {
+    $body = @{ email = $OwnerEmail; password = $password } | ConvertTo-Json -Compress
+    $response = Invoke-RestMethod -Method Post -Uri "$SupabaseUrl/auth/v1/token?grant_type=password" -Headers @{ apikey = $PublishableKey } -ContentType 'application/json' -Body $body
+    Set-AuthTokens $response
+  } finally {
+    $password = $null
+  }
+}
+
+function Refresh-CentralOwner {
+  if ([string]::IsNullOrWhiteSpace($script:RefreshToken)) {
+    Login-CentralOwner
+    return
+  }
+
+  $body = @{ refresh_token = $script:RefreshToken } | ConvertTo-Json -Compress
+  $response = Invoke-RestMethod -Method Post -Uri "$SupabaseUrl/auth/v1/token?grant_type=refresh_token" -Headers @{ apikey = $PublishableKey } -ContentType 'application/json' -Body $body
+  Set-AuthTokens $response
+}
+
+function Get-CentralHeaders {
+  if ([string]::IsNullOrWhiteSpace($script:AccessToken)) {
+    Login-CentralOwner
+  } elseif ([DateTimeOffset]::UtcNow -ge $script:TokenExpiresAt.AddMinutes(-2)) {
+    Refresh-CentralOwner
+  }
+
+  return @{
+    apikey = $PublishableKey
+    Authorization = "Bearer $script:AccessToken"
+  }
 }
 
 function Invoke-CentralRpc([string]$FunctionName, [hashtable]$Body) {
   $json = $Body | ConvertTo-Json -Depth 20 -Compress
-  return Invoke-RestMethod -Method Post -Uri "$SupabaseUrl/rest/v1/rpc/$FunctionName" -Headers $Headers -ContentType 'application/json' -Body $json
+  $headers = Get-CentralHeaders
+  try {
+    return Invoke-RestMethod -Method Post -Uri "$SupabaseUrl/rest/v1/rpc/$FunctionName" -Headers $headers -ContentType 'application/json' -Body $json
+  } catch {
+    if ($_.Exception.Response.StatusCode.value__ -eq 401) {
+      Refresh-CentralOwner
+      $headers = Get-CentralHeaders
+      return Invoke-RestMethod -Method Post -Uri "$SupabaseUrl/rest/v1/rpc/$FunctionName" -Headers $headers -ContentType 'application/json' -Body $json
+    }
+    throw
+  }
 }
 
 function Get-WorkshopTests {
@@ -119,11 +190,7 @@ function Invoke-OllamaPrompt([object]$Payload) {
   } | ConvertTo-Json -Depth 8 -Compress
 
   $response = Invoke-RestMethod -Method Post -Uri "$OllamaUrl/api/generate" -ContentType 'application/json' -Body $body -TimeoutSec 300
-  return @{
-    action = 'ollama_prompt'
-    model = $model
-    response = $response.response
-  }
+  return @{ action = 'ollama_prompt'; model = $model; response = $response.response }
 }
 
 function Invoke-GitStatus {
@@ -145,18 +212,10 @@ function Invoke-GitDiff {
 function Invoke-WorkshopTask([object]$Task, $Tests) {
   $action = [string]$Task.payload.action
   switch ($action) {
-    'bridge_self_test' {
-      return @{ verified = $true; result = @{ action = $action; tests = $Tests } }
-    }
-    'ollama_prompt' {
-      return @{ verified = $true; result = (Invoke-OllamaPrompt $Task.payload) }
-    }
-    'git_status' {
-      return @{ verified = $true; result = (Invoke-GitStatus) }
-    }
-    'git_diff' {
-      return @{ verified = $true; result = (Invoke-GitDiff) }
-    }
+    'bridge_self_test' { return @{ verified = $true; result = @{ action = $action; tests = $Tests } } }
+    'ollama_prompt' { return @{ verified = $true; result = (Invoke-OllamaPrompt $Task.payload) } }
+    'git_status' { return @{ verified = $true; result = (Invoke-GitStatus) } }
+    'git_diff' { return @{ verified = $true; result = (Invoke-GitDiff) } }
     default {
       return @{
         verified = $false
@@ -170,6 +229,7 @@ function Invoke-WorkshopTask([object]$Task, $Tests) {
 }
 
 Write-Host "CENTRAL Workshop bridge starting as node: $NodeId"
+Login-CentralOwner
 
 while ($true) {
   try {
