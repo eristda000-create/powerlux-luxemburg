@@ -1,5 +1,3 @@
-Set-StrictMode -Version Latest
-
 function Test-CentralBlockedRelativePath {
   param([Parameter(Mandatory=$true)][string]$RelativePath)
 
@@ -45,7 +43,10 @@ function Get-CentralPayloadBool {
   param([object]$Payload, [string]$Name, [bool]$Default)
   $prop = $Payload.PSObject.Properties[$Name]
   if ($null -eq $prop -or $null -eq $prop.Value) { return $Default }
-  return [bool]$prop.Value
+  if ($prop.Value -is [bool]) { return [bool]$prop.Value }
+  $parsed = $false
+  if ([bool]::TryParse([string]$prop.Value, [ref]$parsed)) { return $parsed }
+  return $Default
 }
 
 function Get-CentralPayloadInt {
@@ -231,6 +232,7 @@ $context
 "@
 
   $guardian = Invoke-CentralOllamaAgent -OllamaUrl $OllamaUrl -Model $model -Prompt $guardianPrompt
+  $obsidianAccess = if ([string]::IsNullOrWhiteSpace($ObsidianVault)) { 'not_configured' } else { 'read_only' }
 
   return [ordered]@{
     action = 'local_agent_team'
@@ -244,7 +246,7 @@ $context
     }
     access = @{
       repository = 'read_only'
-      obsidian = if ([string]::IsNullOrWhiteSpace($ObsidianVault)) { 'not_configured' } else { 'read_only' }
+      obsidian = $obsidianAccess
       arbitrary_shell = $false
       credentials = $false
     }
