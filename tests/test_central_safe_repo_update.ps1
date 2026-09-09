@@ -44,6 +44,8 @@ try {
   Invoke-Git $seed commit -m 'seed v1' | Out-Null
   Invoke-Git $seed remote add origin $remote | Out-Null
   Invoke-Git $seed push -u origin main | Out-Null
+  & git --git-dir $remote symbolic-ref HEAD refs/heads/main
+  if ($LASTEXITCODE -ne 0) { throw 'Unable to point bare remote HEAD at main.' }
 
   & git clone $remote $work | Out-Null
   if ($LASTEXITCODE -ne 0) { throw 'Unable to clone test remote.' }
