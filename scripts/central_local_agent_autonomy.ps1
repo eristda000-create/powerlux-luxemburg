@@ -5,6 +5,23 @@ function Get-CentralAutonomyModel {
   throw 'No Ollama model is configured or detected for local autonomy.'
 }
 
+function Resolve-CentralAutonomySupportModel {
+  param(
+    [Parameter(Mandatory=$true)][string]$OllamaUrl,
+    [Parameter(Mandatory=$true)][string]$FallbackModel
+  )
+
+  $preferred = [Environment]::GetEnvironmentVariable('CENTRAL_OLLAMA_FAST_MODEL')
+  if ([string]::IsNullOrWhiteSpace($preferred)) { $preferred = 'qwen3:1.7b' }
+  try {
+    $tags = Invoke-RestMethod -Method Get -Uri "$($OllamaUrl.TrimEnd('/'))/api/tags" -TimeoutSec 5
+    $names = @($tags.models | ForEach-Object { [string]$_.name })
+    $match = $names | Where-Object { $_ -eq $preferred -or $_ -like "$preferred*" } | Select-Object -First 1
+    if (-not [string]::IsNullOrWhiteSpace($match)) { return [string]$match }
+  } catch {}
+  return $FallbackModel
+}
+
 function ConvertFrom-CentralAgentJson {
   param([string]$Text)
   if ([string]::IsNullOrWhiteSpace($Text)) { return $null }
@@ -110,7 +127,8 @@ function Invoke-CentralLocalAutonomy {
     return [ordered]@{ enabled=$false; executed=@(); reason='disabled_by_work_item' }
   }
 
-  $model = Get-CentralAutonomyModel -ConfiguredModel $ConfiguredModel -DetectedModel $DetectedModel
+  $fallbackModel = Get-CentralAutonomyModel -ConfiguredModel $ConfiguredModel -DetectedModel $DetectedModel
+  $model = Resolve-CentralAutonomySupportModel -OllamaUrl $OllamaUrl -FallbackModel $fallbackModel
   $objective = [string]$Payload.objective
   $analyst = [string]$TeamResult.agents.qwen_analyst.response
   $guardian = [string]$TeamResult.agents.qwen_guardian.response
@@ -140,10 +158,10 @@ GUARDIAN:
 $guardian
 "@
 
-  $raw = Invoke-CentralOllamaAgent -OllamaUrl $OllamaUrl -Model $model -Prompt $plannerPrompt -MaxTokens 96 -ContextTokens 3072 -TimeoutSec 90
+  $raw = Invoke-CentralOllamaAgent -OllamaUrl $OllamaUrl -Model $model -Prompt $plannerPrompt -MaxTokens 72 -ContextTokens 2304 -TimeoutSec 60
   $plan = ConvertFrom-CentralAgentJson -Text $raw
   if ($null -eq $plan -or $null -eq $plan.actions) {
-    return [ordered]@{ enabled=$true; planner_model=$model; plan_valid=$false; raw=$raw; executed=@() }
+    return [ordered]@{ enabled=$true; performance_profile='dual_model_v3'; planner_model=$model; plan_valid=$false; raw=$raw; executed=@() }
   }
 
   $executed = [System.Collections.Generic.List[object]]::new()
@@ -157,7 +175,7 @@ $guardian
 
   return [ordered]@{
     enabled = $true
-    performance_profile = 'low_resource_v2'
+    performance_profile = 'dual_model_v3'
     planner_model = $model
     plan_valid = $true
     requested = @($plan.actions | Select-Object -First 3)
