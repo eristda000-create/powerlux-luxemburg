@@ -6,6 +6,9 @@ $ErrorActionPreference = 'Stop'
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $startScript = Join-Path $PSScriptRoot 'start-central-workshop.ps1'
+$agentScript = Join-Path $PSScriptRoot 'central_local_agent_team.ps1'
+$autonomyScript = Join-Path $PSScriptRoot 'central_local_agent_autonomy.ps1'
+$supervisorStatus = Join-Path (Join-Path $HOME '.central') 'supervisor-status.json'
 $tokenCache = [Environment]::GetEnvironmentVariable('CENTRAL_WORKSHOP_TOKEN_CACHE')
 if ([string]::IsNullOrWhiteSpace($tokenCache)) {
   $tokenCache = Join-Path (Join-Path $HOME '.central') 'workshop-auth.json'
@@ -25,6 +28,11 @@ $checks = [ordered]@{
   git = 'not_checked'
   ollama = 'not_checked'
   ollama_models = @()
+  local_agent_team_source = if (Test-Path -LiteralPath $agentScript -PathType Leaf) { 'present' } else { 'missing' }
+  local_autonomy_source = if (Test-Path -LiteralPath $autonomyScript -PathType Leaf) { 'present' } else { 'missing' }
+  supervisor = 'not_detected'
+  supervisor_pid = $null
+  supervisor_bridge_running = $null
   windows_dpapi_session_cache = if ($IsWindows -and (Test-Path -LiteralPath $tokenCache -PathType Leaf)) { 'present' } else { 'absent' }
   remote_bridge = if ($LocalOnly) { 'not_tested' } else { 'pending' }
 }
@@ -45,6 +53,17 @@ try {
   $checks.ollama = 'ok'
   $checks.ollama_models = @($tags.models | ForEach-Object { $_.name })
 } catch { $checks.ollama = $_.Exception.Message }
+
+if (Test-Path -LiteralPath $supervisorStatus -PathType Leaf) {
+  try {
+    $s = Get-Content -LiteralPath $supervisorStatus -Raw | ConvertFrom-Json
+    $age = [DateTimeOffset]::UtcNow - [DateTimeOffset]::Parse([string]$s.timestamp)
+    $checks.supervisor_pid = $s.supervisor_pid
+    $checks.supervisor_bridge_running = [bool]$s.bridge_running
+    if ($age.TotalMinutes -le 2 -and [bool]$s.bridge_running) { $checks.supervisor = 'ok' }
+    else { $checks.supervisor = 'stale' }
+  } catch { $checks.supervisor = 'error' }
+}
 
 if (-not $LocalOnly) {
   if (-not (Test-Path -LiteralPath $startScript -PathType Leaf)) {
