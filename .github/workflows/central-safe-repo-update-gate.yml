@@ -6,11 +6,13 @@ on:
     paths:
       - 'scripts/central_safe_repo_update.ps1'
       - 'scripts/central_workshop_bridge.ps1'
+      - 'tests/test_central_safe_repo_update.ps1'
       - '.github/workflows/central-safe-repo-update-gate.yml'
   pull_request:
     paths:
       - 'scripts/central_safe_repo_update.ps1'
       - 'scripts/central_workshop_bridge.ps1'
+      - 'tests/test_central_safe_repo_update.ps1'
       - '.github/workflows/central-safe-repo-update-gate.yml'
   workflow_dispatch:
 
@@ -51,3 +53,7 @@ jobs:
           grep -Fq "'git_fast_forward_update'" scripts/central_workshop_bridge.ps1
           grep -Fq "if (\$Tests.supervisor -ne 'ok')" scripts/central_workshop_bridge.ps1
           grep -Fq 'Safe repo update completed. Exiting bridge' scripts/central_workshop_bridge.ps1
+
+      - name: Behavioral fast-forward safety tests
+        shell: pwsh
+        run: ./tests/test_central_safe_repo_update.ps1
