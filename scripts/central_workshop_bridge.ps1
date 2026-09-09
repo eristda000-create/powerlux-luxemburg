@@ -14,7 +14,6 @@ function Get-EnvRequired([string]$Name) {
 $SupabaseUrl = (Get-EnvRequired 'CENTRAL_SUPABASE_URL').TrimEnd('/')
 $PublishableKey = Get-EnvRequired 'CENTRAL_SUPABASE_PUBLISHABLE_KEY'
 $OwnerEmail = [Environment]::GetEnvironmentVariable('CENTRAL_SUPABASE_EMAIL')
-if ([string]::IsNullOrWhiteSpace($OwnerEmail)) { $OwnerEmail = Read-Host 'CENTRAL owner email' }
 
 $HostName = [System.Net.Dns]::GetHostName()
 $NodeId = [Environment]::GetEnvironmentVariable('CENTRAL_WORKSHOP_NODE_ID')
@@ -29,9 +28,15 @@ $WorkDir = [Environment]::GetEnvironmentVariable('CENTRAL_WORKDIR')
 $ConfiguredModel = [Environment]::GetEnvironmentVariable('CENTRAL_OLLAMA_MODEL')
 $script:DetectedOllamaModel = $null
 
+$TokenCachePath = [Environment]::GetEnvironmentVariable('CENTRAL_WORKSHOP_TOKEN_CACHE')
+if ([string]::IsNullOrWhiteSpace($TokenCachePath)) {
+  $TokenCachePath = Join-Path (Join-Path $HOME '.central') 'workshop-auth.json'
+}
+
 $script:AccessToken = $null
 $script:RefreshToken = $null
 $script:TokenExpiresAt = [DateTimeOffset]::MinValue
+$script:LastCycleVerified = $false
 
 function Convert-SecureStringToPlain([Security.SecureString]$Secure) {
   $ptr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($Secure)
@@ -39,36 +44,99 @@ function Convert-SecureStringToPlain([Security.SecureString]$Secure) {
   finally { [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($ptr) }
 }
 
+function Save-WorkshopSession {
+  if (-not $IsWindows) { return }
+  if ([string]::IsNullOrWhiteSpace($script:RefreshToken) -or [string]::IsNullOrWhiteSpace($OwnerEmail)) { return }
+
+  $dir = Split-Path -Parent $TokenCachePath
+  if (-not (Test-Path -LiteralPath $dir -PathType Container)) {
+    New-Item -ItemType Directory -Path $dir -Force | Out-Null
+  }
+
+  $secure = ConvertTo-SecureString $script:RefreshToken -AsPlainText -Force
+  $encrypted = ConvertFrom-SecureString $secure
+  @{
+    email = $OwnerEmail
+    refresh_token_dpapi = $encrypted
+    saved_at = [DateTimeOffset]::UtcNow.ToString('o')
+  } | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $TokenCachePath -Encoding UTF8
+}
+
+function Clear-WorkshopSession {
+  $script:AccessToken = $null
+  $script:RefreshToken = $null
+  $script:TokenExpiresAt = [DateTimeOffset]::MinValue
+  if (Test-Path -LiteralPath $TokenCachePath -PathType Leaf) {
+    Remove-Item -LiteralPath $TokenCachePath -Force -ErrorAction SilentlyContinue
+  }
+}
+
 function Set-AuthTokens($Response) {
   $script:AccessToken = [string]$Response.access_token
   $script:RefreshToken = [string]$Response.refresh_token
   $expiresIn = if ($null -ne $Response.expires_in) { [int]$Response.expires_in } else { 3600 }
   $script:TokenExpiresAt = [DateTimeOffset]::UtcNow.AddSeconds($expiresIn)
+  Save-WorkshopSession
+}
+
+function Refresh-CentralOwner {
+  if ([string]::IsNullOrWhiteSpace($script:RefreshToken)) { throw 'No refresh token is available.' }
+  $body = @{ refresh_token = $script:RefreshToken } | ConvertTo-Json -Compress
+  $response = Invoke-RestMethod -Method Post -Uri "$SupabaseUrl/auth/v1/token?grant_type=refresh_token" -Headers @{ apikey = $PublishableKey } -ContentType 'application/json' -Body $body
+  Set-AuthTokens $response
+}
+
+function Try-LoadCachedSession {
+  if (-not $IsWindows) { return $false }
+  if (-not (Test-Path -LiteralPath $TokenCachePath -PathType Leaf)) { return $false }
+
+  try {
+    $cache = Get-Content -LiteralPath $TokenCachePath -Raw | ConvertFrom-Json
+    if ([string]::IsNullOrWhiteSpace($cache.email) -or [string]::IsNullOrWhiteSpace($cache.refresh_token_dpapi)) { return $false }
+
+    if ([string]::IsNullOrWhiteSpace($script:OwnerEmail)) {
+      $script:OwnerEmail = [string]$cache.email
+    } elseif ($script:OwnerEmail.ToLowerInvariant() -ne ([string]$cache.email).ToLowerInvariant()) {
+      return $false
+    }
+
+    $secure = ConvertTo-SecureString ([string]$cache.refresh_token_dpapi)
+    $script:RefreshToken = Convert-SecureStringToPlain $secure
+    Refresh-CentralOwner
+    return $true
+  } catch {
+    Clear-WorkshopSession
+    return $false
+  }
 }
 
 function Login-CentralOwner {
+  if ([string]::IsNullOrWhiteSpace($script:OwnerEmail)) {
+    $script:OwnerEmail = Read-Host 'CENTRAL owner email'
+  }
   $password = [Environment]::GetEnvironmentVariable('CENTRAL_SUPABASE_PASSWORD')
   if ([string]::IsNullOrWhiteSpace($password)) {
     $secure = Read-Host 'CENTRAL owner password' -AsSecureString
     $password = Convert-SecureStringToPlain $secure
   }
   try {
-    $body = @{ email = $OwnerEmail; password = $password } | ConvertTo-Json -Compress
+    $body = @{ email = $script:OwnerEmail; password = $password } | ConvertTo-Json -Compress
     $response = Invoke-RestMethod -Method Post -Uri "$SupabaseUrl/auth/v1/token?grant_type=password" -Headers @{ apikey = $PublishableKey } -ContentType 'application/json' -Body $body
     Set-AuthTokens $response
   } finally { $password = $null }
 }
 
-function Refresh-CentralOwner {
-  if ([string]::IsNullOrWhiteSpace($script:RefreshToken)) { Login-CentralOwner; return }
-  $body = @{ refresh_token = $script:RefreshToken } | ConvertTo-Json -Compress
-  $response = Invoke-RestMethod -Method Post -Uri "$SupabaseUrl/auth/v1/token?grant_type=refresh_token" -Headers @{ apikey = $PublishableKey } -ContentType 'application/json' -Body $body
-  Set-AuthTokens $response
+function Ensure-CentralSession {
+  if (-not [string]::IsNullOrWhiteSpace($script:AccessToken) -and [DateTimeOffset]::UtcNow -lt $script:TokenExpiresAt.AddMinutes(-2)) { return }
+  if (-not [string]::IsNullOrWhiteSpace($script:RefreshToken)) {
+    try { Refresh-CentralOwner; return } catch { Clear-WorkshopSession }
+  }
+  if (Try-LoadCachedSession) { return }
+  Login-CentralOwner
 }
 
 function Get-CentralHeaders {
-  if ([string]::IsNullOrWhiteSpace($script:AccessToken)) { Login-CentralOwner }
-  elseif ([DateTimeOffset]::UtcNow -ge $script:TokenExpiresAt.AddMinutes(-2)) { Refresh-CentralOwner }
+  Ensure-CentralSession
   return @{ apikey = $PublishableKey; Authorization = "Bearer $script:AccessToken" }
 }
 
@@ -81,7 +149,8 @@ function Invoke-CentralBridge([string]$Action, [hashtable]$Payload) {
     $status = $null
     try { $status = $_.Exception.Response.StatusCode.value__ } catch {}
     if ($status -eq 401) {
-      Refresh-CentralOwner
+      Clear-WorkshopSession
+      Login-CentralOwner
       return Invoke-RestMethod -Method Post -Uri "$SupabaseUrl/functions/v1/central-workshop-bridge" -Headers (Get-CentralHeaders) -ContentType 'application/json' -Body $body
     }
     throw
@@ -121,7 +190,7 @@ function Send-Heartbeat($Tests) {
     platform=$platform; powershell_version=$Tests.powershell_version; ollama_url=$OllamaUrl;
     obsidian_configured=-not [string]::IsNullOrWhiteSpace($ObsidianVault);
     workdir_configured=-not [string]::IsNullOrWhiteSpace($WorkDir);
-    bridge_script='scripts/central_workshop_bridge.ps1'
+    bridge_script='scripts/central_workshop_bridge.ps1'; token_cache_windows_dpapi=$IsWindows
   }
   return Invoke-CentralBridge 'heartbeat' @{ node_id=$NodeId; runtime=$runtime }
 }
@@ -168,15 +237,17 @@ function Invoke-WorkshopTask([object]$Task, $Tests) {
 }
 
 Write-Host "CENTRAL Workshop bridge starting as node: $NodeId"
-Login-CentralOwner
+Ensure-CentralSession
 
 while ($true) {
+  $script:LastCycleVerified = $false
   try {
     $tests = Get-WorkshopTests
     $null = Send-Heartbeat $tests
     $selfTest = Send-SelfTest $tests
 
     if ($selfTest.data.runtime_verified -eq $true) {
+      $script:LastCycleVerified = $true
       $claim = Invoke-CentralBridge 'claim_next' @{ node_id=$NodeId }
       if ($null -ne $claim.data.task) {
         $task = $claim.data.task
@@ -202,3 +273,5 @@ while ($true) {
   if ($Once) { break }
   Start-Sleep -Seconds ([Math]::Max(10,$PollSeconds))
 }
+
+if ($Once -and -not $script:LastCycleVerified) { exit 1 }
