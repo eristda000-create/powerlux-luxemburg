@@ -1,6 +1,6 @@
 # MERG AI OS — PROJECT REGISTRY
 
-**As-of date:** 2026-09-08
+**As-of date:** 2026-09-09
 
 This registry tells AI agents what is canonical, what is provisional and what must be verified before action.
 
@@ -11,7 +11,8 @@ This registry tells AI agents what is canonical, what is provisional and what mu
 | PowerTV | Sport / niche-sport streaming and editorial platform | **No canonical Git source verified yet** | Existing real ChatGPT Sites product titled `PowerTV — Sport jenseits des Mainstreams` | Do not recreate. Recover/export original source first. Ad-hoc Vercel replacements are non-canonical. |
 | Cogni / Diffuse | Multi-LLM platform | `eristda000-create/cogni` (private) | Verify Vercel before release claims; Supabase project `Cogni` verified active/healthy | Cogni-specific truth belongs in Cogni repo. |
 | MERG Trading | Cross-industry trading / sourcing / intermediary engine | `UNVERIFIED` | `UNVERIFIED` | Do not invent repo/backend/deployment. Find original source before implementation changes. |
-| Jarvis / Automation | Cross-project AI/automation control layer | `UNVERIFIED` as a dedicated repo | `UNVERIFIED` | Treat as an operating capability, not as deployed software, until source/runtime is verified. |
+| CENTRAL Workshop | Cross-device local execution bridge: ChatGPT command layer, PC execution, phone review, PowerShell, local Ollama/Llama and intended Obsidian memory | Bridge/control contract is in `eristda000-create/powerlux-luxemburg`; **dedicated local runtime repo remains UNVERIFIED** | MERG Supabase unit `central_workshop` + channel `central_workshop_local_bridge`; local PC runtime remains unverified until authenticated heartbeat + self-test | Read `CENTRAL_WORKSHOP_BRIDGE.md`. Never equate registered control-plane state with a connected PC. |
+| Jarvis / Automation | Cross-project AI/automation control layer | `UNVERIFIED` as a dedicated repo | `UNVERIFIED` as a standalone deployed runtime | Treat as an operating capability. The CENTRAL Workshop bridge is now the verified group control contract for local execution, but it does not prove the separate historical Jarvis prototype/runtime is canonical or currently running. |
 
 ## Canonicality levels
 

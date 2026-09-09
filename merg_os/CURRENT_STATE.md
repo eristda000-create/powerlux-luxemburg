@@ -85,13 +85,32 @@
 
 `DONE` Cron job `merg-social-revenue-brief-cycle` is active at `12,42 * * * *`, shortly after the Value Engine cycle.
 
+`DONE / VERIFIED` Value Feedback loop is active through `public.merg_value_feedback_cycle()` and cron `17,47 * * * *`. It attributes conversions/revenue only through explicit work-item/opportunity links. Initial verification found `0` verified conversions and `0` verified revenue, so it correctly updated `0` items instead of inventing attribution.
+
+`FACT` Metricool is connected to the MERG operating account as a real authenticated social planning/analytics surface. The Metricool brand exists, but at the latest verification its `networksData` was empty and it had `0` scheduled posts; therefore Instagram/Facebook publishing is not yet connected and must not be reported as live.
+
+`OPEN` Link the intended social network accounts inside the connected Metricool brand. Until a network appears there, generated social revenue briefs remain drafts and Best-Time/analytics signals are not meaningful.
+
 `RULE` The Value Engine and Social Revenue layer do not execute external irreversible actions by themselves. New outreach, public social publishing, price acceptance, purchases, contracts, public partner claims, legal/IP filings and paid campaigns remain governed by the existing MERG approval policy.
 
 `FACT` Existing active backend surfaces include `powerlux-content-engine`, `merg-jarvis`, `merg-jarvis-chat`, MERG market/revenue functions, `pg_cron` and `pg_net`; the Value Engine is a prioritization/routing layer over those capabilities.
 
-`OPEN` A real authenticated social publisher/analytics adapter is not yet connected. Social revenue briefs are now generated automatically, but actual publishing must not be reported as automatic until a real publisher connection is verified.
-
 `OPEN` Supabase advisors still report broad pre-existing project-wide security/performance findings; no new SECURITY DEFINER/RLS exposure specific to the Value Engine was identified in the 2026-09-09 advisor run.
+
+### CENTRAL Workshop Bridge — 2026-09-09
+`DECISION` The cross-device/local execution work referred to as the user's "Werkstatt" is registered in the group control plane as `CENTRAL Workshop`; this does not invent or rename a separate canonical runtime repository. A dedicated local runtime repo remains unverified.
+
+`DONE / VERIFIED` Production MERG Supabase now contains group unit `central_workshop`, channel `central_workshop_local_bridge`, a bootstrap work item, heartbeat/self-test/claim/complete RPCs and watchdog cron `merg-workshop-watchdog` every 5 minutes.
+
+`DONE / VERIFIED` Active Edge Function `central-workshop-bridge` is the authenticated client gateway. It checks a signed-in user's email against the existing enabled `owner` ACL before using its server-side admin client for narrow bridge RPC calls.
+
+`DONE / VERIFIED` The four work RPCs are `SECURITY INVOKER` and executable only by `postgres`/`service_role`; direct `public`, `anon` and `authenticated` RPC access is revoked. The Supabase security advisor returned to the pre-existing count of `8` authenticated SECURITY DEFINER warnings after this hardening.
+
+`DONE` Canonical PC runner is `scripts/central_workshop_bridge.ps1`. It uses a publishable key + normal owner login and never requires a service-role key on the PC. v1 supports `bridge_self_test`, `ollama_prompt`, `git_status` and `git_diff`; arbitrary remote PowerShell is deliberately not enabled.
+
+`UNVERIFIED` The actual local PC is not yet connected. The bridge channel remains `planned` with sentinel address `UNVERIFIED_LOCAL_ENDPOINT`, `runtime_verified=false`, and no live node heartbeat/self-test. A pre-runtime claim is correctly rejected as `runtime_not_verified_or_stale`.
+
+`RULE` Do not report PowerShell execution, local Ollama, Obsidian, PC connectivity or automatic Work→new-chat handoff as active until the owning runtime supplies live evidence. Read `merg_os/CENTRAL_WORKSHOP_BRIDGE.md` before any Workshop work.
 
 ## Non-negotiable truth rule
 Chat memory is not a deployment database. A statement such as "we already connected/deployed/built this" must be checked against the relevant real system whenever the answer or action depends on it.
