@@ -36,12 +36,7 @@ $Headers = @{
 
 function Invoke-CentralRpc([string]$FunctionName, [hashtable]$Body) {
   $json = $Body | ConvertTo-Json -Depth 20 -Compress
-  return Invoke-RestMethod \
-    -Method Post \
-    -Uri "$SupabaseUrl/rest/v1/rpc/$FunctionName" \
-    -Headers $Headers \
-    -ContentType 'application/json' \
-    -Body $json
+  return Invoke-RestMethod -Method Post -Uri "$SupabaseUrl/rest/v1/rpc/$FunctionName" -Headers $Headers -ContentType 'application/json' -Body $json
 }
 
 function Get-WorkshopTests {
@@ -89,7 +84,7 @@ function Get-WorkshopTests {
   return $tests
 }
 
-function Send-Heartbeat([hashtable]$Tests) {
+function Send-Heartbeat($Tests) {
   $runtime = @{
     platform = 'windows-powershell'
     powershell_version = $Tests.powershell_version
@@ -104,7 +99,7 @@ function Send-Heartbeat([hashtable]$Tests) {
   }
 }
 
-function Send-SelfTest([hashtable]$Tests) {
+function Send-SelfTest($Tests) {
   return Invoke-CentralRpc 'merg_workshop_self_test' @{
     p_node_id = $NodeId
     p_tests = $Tests
@@ -147,7 +142,7 @@ function Invoke-GitDiff {
   return @{ action = 'git_diff'; workdir = $WorkDir; output = $output }
 }
 
-function Invoke-WorkshopTask([object]$Task, [hashtable]$Tests) {
+function Invoke-WorkshopTask([object]$Task, $Tests) {
   $action = [string]$Task.payload.action
   switch ($action) {
     'bridge_self_test' {
