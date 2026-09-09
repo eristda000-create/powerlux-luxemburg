@@ -71,7 +71,7 @@
 ### MERG Value Engine — 2026-09-09
 `DECISION` The group-level autonomous value rule is **MONEY, KNOWLEDGE or BOTH**. Work that produces neither is deprioritized.
 
-`DONE` A real MERG Value Engine is implemented on branch `feature/merg-value-engine-v1` and integrated with the existing MERG Supabase control plane rather than a parallel data model.
+`DONE` MERG Value Engine v1 is merged into `main` and integrated with the existing MERG Supabase control plane rather than a parallel data model.
 
 `DONE` Production policy `merg_ai_policy.value_engine` is enabled. Seven cross-project watch sources are registered for PowerLux sponsorship/sport, PowerTV media/rights, creator monetization, EU sport funding, Cogni AI/sports research and patent/prior-art research.
 
@@ -81,11 +81,15 @@
 
 `DONE / VERIFIED` First live verification created `24` MONEY and `5` KNOWLEDGE work items. An immediate second run created `0` and `0`, proving deduplication against unchanged inputs. Current stored Value Engine items are `24` MONEY + `5` KNOWLEDGE.
 
-`RULE` The Value Engine does not execute external irreversible actions by itself. New outreach, public social publishing, price acceptance, purchases, contracts, public partner claims, legal/IP filings and paid campaigns remain governed by the existing MERG approval policy.
+`DONE / VERIFIED` Social Revenue Brief layer is active. `public.merg_social_revenue_brief_cycle()` converted all `24` MONEY work items into Instagram-first revenue briefs with objective, audience, hook, caption draft, CTA, monetization hypothesis and measurable KPIs. Immediate second run created `0`, proving deduplication.
+
+`DONE` Cron job `merg-social-revenue-brief-cycle` is active at `12,42 * * * *`, shortly after the Value Engine cycle.
+
+`RULE` The Value Engine and Social Revenue layer do not execute external irreversible actions by themselves. New outreach, public social publishing, price acceptance, purchases, contracts, public partner claims, legal/IP filings and paid campaigns remain governed by the existing MERG approval policy.
 
 `FACT` Existing active backend surfaces include `powerlux-content-engine`, `merg-jarvis`, `merg-jarvis-chat`, MERG market/revenue functions, `pg_cron` and `pg_net`; the Value Engine is a prioritization/routing layer over those capabilities.
 
-`OPEN` A real social publisher/analytics adapter is not yet connected. Social content can be generated and queued, but publishing must not be reported as automatic until an authenticated publisher connection is verified.
+`OPEN` A real authenticated social publisher/analytics adapter is not yet connected. Social revenue briefs are now generated automatically, but actual publishing must not be reported as automatic until a real publisher connection is verified.
 
 `OPEN` Supabase advisors still report broad pre-existing project-wide security/performance findings; no new SECURITY DEFINER/RLS exposure specific to the Value Engine was identified in the 2026-09-09 advisor run.
 
