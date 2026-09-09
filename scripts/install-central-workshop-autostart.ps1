@@ -11,6 +11,7 @@ if (-not $IsWindows) {
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $startScript = Join-Path $PSScriptRoot 'start-central-workshop.ps1'
+$supervisorScript = Join-Path $PSScriptRoot 'central_supervisor.ps1'
 $pwsh = Get-Command pwsh -ErrorAction Stop
 $runKey = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run'
 $valueName = 'CENTRALWorkshopBridge'
@@ -26,6 +27,9 @@ if ($Remove) {
 
 if (-not (Test-Path -LiteralPath $startScript -PathType Leaf)) {
   throw "Start script not found: $startScript"
+}
+if (-not (Test-Path -LiteralPath $supervisorScript -PathType Leaf)) {
+  throw "Supervisor script not found: $supervisorScript"
 }
 
 if (-not $SkipHandshake -and -not (Test-Path -LiteralPath $tokenCache -PathType Leaf)) {
@@ -44,10 +48,11 @@ if (-not (Test-Path $runKey)) {
   New-Item -Path $runKey -Force | Out-Null
 }
 
-$command = '"' + $pwsh.Source + '" -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File "' + $startScript + '"'
+$command = '"' + $pwsh.Source + '" -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File "' + $supervisorScript + '"'
 New-ItemProperty -Path $runKey -Name $valueName -Value $command -PropertyType String -Force | Out-Null
 
-Write-Host 'CENTRAL Workshop autostart installed for the current Windows user.'
+Write-Host 'CENTRAL Workshop supervisor autostart installed for the current Windows user.'
 Write-Host "Repository: $repoRoot"
 Write-Host "Startup command: $command"
+Write-Host 'The supervisor keeps Ollama and the CENTRAL bridge available and uses a restart budget to avoid crash loops.'
 Write-Host 'The stored Supabase refresh token is DPAPI-encrypted for this Windows user; no password is stored by this installer.'
