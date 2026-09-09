@@ -1,0 +1,83 @@
+name: MERG Value Engine
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '23 */6 * * *'
+  push:
+    branches: [main]
+    paths:
+      - 'merg_os/VALUE_ENGINE.md'
+      - 'merg_os/value_sources.json'
+      - 'scripts/merg_value_engine.py'
+      - '.github/workflows/merg-value-engine.yml'
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  scan-score-route:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+
+    steps:
+      - name: Checkout canonical control repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Run MERG Value Engine
+        id: value
+        continue-on-error: true
+        run: |
+          python scripts/merg_value_engine.py
+          python - <<'PY' >> "$GITHUB_OUTPUT"
+          import json
+          d=json.load(open("value_engine_report.json", encoding="utf-8"))
+          print(f"actionable_count={int(d.get('actionable_count',0))}")
+          print(f"candidate_count={int(d.get('candidate_count',0))}")
+          PY
+
+      - name: Upload value-engine evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: merg-value-engine-report
+          path: |
+            value_engine_report.md
+            value_engine_report.json
+            value_engine_queue.ndjson
+          retention-days: 30
+
+      - name: Create or refresh actionable queue
+        if: steps.value.outputs.actionable_count != '' && steps.value.outputs.actionable_count != '0'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          TITLE='MERG Value Engine — Action Queue'
+          ISSUE="$(gh issue list --state open --search "$TITLE in:title" --json number --jq '.[0].number // empty')"
+          if [ -z "$ISSUE" ]; then
+            gh issue create --title "$TITLE" --body-file value_engine_report.md
+          else
+            gh issue edit "$ISSUE" --body-file value_engine_report.md
+          fi
+
+      - name: Report total source outage
+        if: steps.value.outcome == 'failure'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          TITLE='MERG Value Engine — Source Alert'
+          ISSUE="$(gh issue list --state open --search "$TITLE in:title" --json number --jq '.[0].number // empty')"
+          if [ -z "$ISSUE" ]; then
+            gh issue create --title "$TITLE" --body-file value_engine_report.md
+          else
+            gh issue edit "$ISSUE" --body-file value_engine_report.md
+          fi
+          exit 1
