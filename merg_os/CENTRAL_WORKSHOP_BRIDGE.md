@@ -27,6 +27,7 @@ The production MERG backend contains:
 - group unit `central_workshop` / `CENTRAL Workshop`;
 - bridge channel `central_workshop_local_bridge`;
 - bridge contract version `1`;
+- active Edge Function `central-workshop-bridge` as the authenticated client gateway;
 - server RPCs:
   - `merg_workshop_heartbeat`;
   - `merg_workshop_self_test`;
@@ -40,32 +41,39 @@ The bridge channel is deliberately registered with `address=UNVERIFIED_LOCAL_END
 
 ## Runtime verification rule
 
-CENTRAL must not claim that the workshop is connected merely because the database schema exists.
+CENTRAL must not claim that the workshop is connected merely because the database schema or Edge Function exists.
 
 A local node becomes eligible to claim work only after:
 
 1. an authenticated owner logs in through Supabase Auth;
-2. the PC sends a heartbeat;
-3. the same authenticated node passes self-test;
-4. PowerShell reports `ok`;
-5. Ollama reports `ok`;
-6. the latest heartbeat is less than 3 minutes old.
+2. the Edge gateway verifies the account against the existing enabled `owner` ACL in `core_admin_users`;
+3. the PC sends a heartbeat through the Edge gateway;
+4. the same node passes self-test;
+5. PowerShell reports `ok`;
+6. Ollama reports `ok`;
+7. the latest heartbeat is less than 3 minutes old.
 
 Obsidian is recorded separately and is not required for the first bridge handshake because the vault path may not yet be configured on every PC.
 
 If heartbeat becomes stale, the watchdog changes the bridge to `degraded`. No local job may be claimed again until the connection is fresh and verified.
 
-## Authentication
+## Authentication and privilege boundary
 
-The PC runner must **not** store a Supabase service-role key.
+The PC runner must **not** store a Supabase service-role or secret key.
 
-It uses:
+The PC uses:
 
 - the public/publishable Supabase key;
-- a normal Supabase Auth session;
+- a normal Supabase Auth user session;
 - an email already enabled as `role=owner` in the canonical `core_admin_users` ACL.
 
-The four externally callable workshop RPCs are `SECURITY DEFINER` only so they can perform narrow backend writes without granting the authenticated user direct table write access. Every request independently verifies the caller against `core_admin_users`. Public/anonymous execution remains revoked.
+Client traffic goes only to:
+
+`/functions/v1/central-workshop-bridge`
+
+The Edge Function authenticates the user, verifies the owner ACL server-side, then uses its server-side admin client to call the narrow internal RPCs. The four work RPCs themselves are `SECURITY INVOKER` and executable only by `service_role`; `public`, `anon` and `authenticated` direct RPC execution is revoked.
+
+This keeps privileged backend credentials off the PC while avoiding broad table access for the authenticated user.
 
 ## PC runner
 
@@ -83,7 +91,8 @@ Authentication:
 - `CENTRAL_SUPABASE_EMAIL` may be supplied, otherwise the script asks for the owner email;
 - `CENTRAL_SUPABASE_PASSWORD` may be supplied, otherwise the script asks securely at runtime;
 - the password is not written to the repository;
-- the runner uses the returned access/refresh token in memory.
+- the runner uses the returned access/refresh token in memory;
+- the runner calls the Edge Function, not the internal RPCs directly.
 
 Optional/local configuration:
 
