@@ -38,6 +38,11 @@ if (Test-Path -LiteralPath $LocalAutonomyHelper -PathType Leaf) {
   . $LocalAutonomyHelper
 }
 
+$SafeRepoUpdateHelper = Join-Path $PSScriptRoot 'central_safe_repo_update.ps1'
+if (Test-Path -LiteralPath $SafeRepoUpdateHelper -PathType Leaf) {
+  . $SafeRepoUpdateHelper
+}
+
 $TokenCachePath = [Environment]::GetEnvironmentVariable('CENTRAL_WORKSHOP_TOKEN_CACHE')
 if ([string]::IsNullOrWhiteSpace($TokenCachePath)) {
   $TokenCachePath = Join-Path (Join-Path $HOME '.central') 'workshop-auth.json'
@@ -47,6 +52,7 @@ $script:AccessToken = $null
 $script:RefreshToken = $null
 $script:TokenExpiresAt = [DateTimeOffset]::MinValue
 $script:LastCycleVerified = $false
+$script:RestartRequested = $false
 
 function Convert-SecureStringToPlain([Security.SecureString]$Secure) {
   $ptr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($Secure)
@@ -170,7 +176,7 @@ function Invoke-CentralBridge([string]$Action, [hashtable]$Payload) {
 function Get-WorkshopTests {
   $tests = [ordered]@{
     powershell = 'ok'; ollama = 'error'; obsidian = 'not_configured'; git = 'not_checked';
-    local_agents = 'not_loaded'; local_autonomy = 'not_loaded'; supervisor = 'not_verified';
+    local_agents = 'not_loaded'; local_autonomy = 'not_loaded'; supervisor = 'not_verified'; safe_repo_update = 'not_loaded';
     node_id = $NodeId; computer_name = $HostName; powershell_version = $PSVersionTable.PSVersion.ToString()
   }
   try {
@@ -195,6 +201,13 @@ function Get-WorkshopTests {
   } else {
     $tests.local_autonomy = 'error'
     $tests.local_autonomy_error = 'central_local_agent_autonomy.ps1 is missing or failed to load.'
+  }
+
+  if ($null -ne (Get-Command Invoke-CentralSafeRepoUpdate -ErrorAction SilentlyContinue)) {
+    $tests.safe_repo_update = 'ok'
+  } else {
+    $tests.safe_repo_update = 'error'
+    $tests.safe_repo_update_error = 'central_safe_repo_update.ps1 is missing or failed to load.'
   }
 
   $supervisorStatus = Join-Path (Join-Path $HOME '.central') 'supervisor-status.json'
@@ -231,6 +244,7 @@ function Send-Heartbeat($Tests) {
     workdir_configured=-not [string]::IsNullOrWhiteSpace($WorkDir);
     local_agents_available=($Tests.local_agents -eq 'ok');
     local_autonomy_available=($Tests.local_autonomy -eq 'ok');
+    safe_repo_update_available=($Tests.safe_repo_update -eq 'ok');
     supervisor_verified=($Tests.supervisor -eq 'ok');
     bridge_script='scripts/central_workshop_bridge.ps1'; token_cache_windows_dpapi=$IsWindows
   }
@@ -267,6 +281,18 @@ function Invoke-GitDiff {
   return @{ action='git_diff'; workdir=$WorkDir; output=$output }
 }
 
+function Invoke-GitFastForwardUpdate($Tests) {
+  if ($null -eq (Get-Command Invoke-CentralSafeRepoUpdate -ErrorAction SilentlyContinue)) {
+    throw 'Safe repo update helper is not loaded.'
+  }
+  if ($Tests.supervisor -ne 'ok') {
+    throw 'Safe repo update requires a fresh verified CENTRAL Supervisor so the bridge can restart after updating.'
+  }
+  $result = Invoke-CentralSafeRepoUpdate -WorkDir $WorkDir
+  if ([bool]$result.changed) { $script:RestartRequested = $true }
+  return $result
+}
+
 function Invoke-WorkshopTask([object]$Task, $Tests) {
   $action = [string]$Task.payload.action
   switch ($action) {
@@ -284,6 +310,7 @@ function Invoke-WorkshopTask([object]$Task, $Tests) {
     }
     'git_status' { return @{ verified=$true; result=(Invoke-GitStatus) } }
     'git_diff' { return @{ verified=$true; result=(Invoke-GitDiff) } }
+    'git_fast_forward_update' { return @{ verified=$true; result=(Invoke-GitFastForwardUpdate $Tests) } }
     default { return @{ verified=$false; result=@{ action=$action; error='Unsupported action. CENTRAL Workshop does not execute arbitrary remote PowerShell commands.' } } }
   }
 }
@@ -310,6 +337,10 @@ while ($true) {
             node_id=$NodeId; work_item_id=$task.id; result=$execution.result; verified=[bool]$execution.verified
           }
           Write-Host "Completed: status=$($completion.data.status), verified=$($completion.data.verified)"
+          if ($script:RestartRequested) {
+            Write-Host 'Safe repo update completed. Exiting bridge so CENTRAL Supervisor can restart the updated runtime.'
+            break
+          }
         } catch {
           $null = Invoke-CentralBridge 'complete' @{
             node_id=$NodeId; work_item_id=$task.id; result=@{ action=[string]$task.payload.action; error=$_.Exception.Message }; verified=$false
