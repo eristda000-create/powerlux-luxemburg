@@ -24,7 +24,7 @@ BASE = os.environ.get(
     "https://powerlux-luxembourg-p0b1w7ine-eristda000-2732s-projects.vercel.app",
 ).rstrip("/")
 TIMEOUT = float(os.environ.get("POWERLUX_CANDIDATE_TIMEOUT", "20"))
-UA = "PowerLux-Canonical-Candidate-Probe/1.0"
+UA = "PowerLux-Canonical-Candidate-Probe/1.1"
 
 
 @dataclass
@@ -118,12 +118,27 @@ def runtime_contract_check() -> Check:
 
 def radar_guard_check() -> Check:
     status, body, _headers, error, latency = fetch("/plx-radar-v3.js")
+    compact = "".join(body.split())
+
     # Known unsafe candidate behavior: accepting a places array without honoring the
     # upstream error field can turn a degraded backend into a false zero-result scan.
-    references_error = "j.error" in body or ".error" in body and "discovery_temporarily_unavailable" in body
+    references_error = (
+        "j.error" in body
+        or "j?.error" in body
+        or (".error" in body and "discovery_temporarily_unavailable" in body)
+    )
     accepts_places = "Array.isArray(j.places)" in body or "Array.isArray(j?.places)" in body
-    known_unconditional_geo = "firstPosition=navigator.geolocation.getCurrentPosition" in body.replace(" ", "")
+
+    # Do not let whitespace/minification make the startup geolocation regression pass.
+    # PR #6 currently defines firstPosition directly from navigator.geolocation and
+    # resolves it during init; that can prompt before a deliberate Scan action.
+    known_unconditional_geo = (
+        "constfirstPosition=navigator.geolocation" in compact
+        and "navigator.geolocation.getCurrentPosition(" in compact
+        and "firstPosition.then(" in compact
+    )
     permissions_api = "navigator.permissions" in body
+
     degraded_ok = status == 200 and accepts_places and references_error
     geo_ok = status == 200 and not known_unconditional_geo and permissions_api
     return Check(
