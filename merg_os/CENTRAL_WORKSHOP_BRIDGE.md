@@ -87,19 +87,23 @@ One-command bootstrap:
 
 The bootstrap contains only the verified Supabase project URL and public publishable key, automatically uses the checked-out repository as `CENTRAL_WORKDIR`, checks whether local Ollama answers, starts `ollama serve` when the executable exists but the service is not responding, and then launches the canonical runner. It contains no user password, service-role key or other backend secret.
 
-Preferred start from the repository root:
-
-```powershell
-pwsh -File .\scripts\start-central-workshop.ps1
-```
-
-One-shot handshake/test:
+Preferred first start from the repository root:
 
 ```powershell
 pwsh -File .\scripts\start-central-workshop.ps1 -Once
 ```
 
-The runner then asks for the owner email/password unless those are supplied locally through `CENTRAL_SUPABASE_EMAIL` / `CENTRAL_SUPABASE_PASSWORD`.
+After a successful first Windows login, the runner stores only the Supabase **refresh token**, encrypted with Windows DPAPI for the current Windows user, at the default local path:
+
+`%USERPROFILE%\.central\workshop-auth.json`
+
+The file does not contain the user's password and is useless to another Windows user/account because the refresh token payload is DPAPI-bound to the current Windows profile. On non-Windows systems the runner does not persist the session by default.
+
+Continuous start:
+
+```powershell
+pwsh -File .\scripts\start-central-workshop.ps1
+```
 
 Optional/local configuration:
 
@@ -108,10 +112,47 @@ Optional/local configuration:
 - `CENTRAL_OLLAMA_MODEL` (optional; if omitted, the runner uses only a model actually reported by the local Ollama `/api/tags` endpoint)
 - `OBSIDIAN_VAULT`
 - `CENTRAL_WORKDIR`
+- `CENTRAL_WORKSHOP_TOKEN_CACHE`
 
 The runner does not assume that `llama3.2` or any other named model is installed. If no configured or detected model exists, an `ollama_prompt` task fails explicitly instead of inventing a model.
 
-The PC-side run itself is **not verified by this repository commit**. It becomes verified only when the production bridge metadata receives a real authenticated heartbeat and successful self-test from that machine.
+## Windows autostart
+
+Canonical installer:
+
+`scripts/install-central-workshop-autostart.ps1`
+
+Install for the current Windows user:
+
+```powershell
+pwsh -File .\scripts\install-central-workshop-autostart.ps1
+```
+
+If no encrypted session exists yet, the installer first runs the one-shot handshake. It registers a current-user `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` entry, so no administrator account or backend master key is needed.
+
+Remove autostart:
+
+```powershell
+pwsh -File .\scripts\install-central-workshop-autostart.ps1 -Remove
+```
+
+Autostart is not considered verified until this installer has actually run on the user's Windows machine and a subsequent live heartbeat is observed.
+
+## Health check
+
+Canonical local + remote health check:
+
+`scripts/test-central-workshop.ps1`
+
+Run:
+
+```powershell
+pwsh -File .\scripts\test-central-workshop.ps1
+```
+
+It checks local Git, Ollama/model visibility, encrypted Windows session-cache presence and then performs an authenticated one-shot bridge handshake. Exit code `0` means the full runtime verification succeeded; non-zero means at least one required part is still unverified.
+
+The PC-side run itself is **not verified by repository commits**. It becomes verified only when the production bridge metadata receives a real authenticated heartbeat and successful self-test from that machine.
 
 ## v1 execution policy
 
@@ -159,9 +200,9 @@ A parallel chat must **not** rebuild the bridge from memory. It should continue 
 
 The user also wants a Work session that reaches its product limit to hand work to a new ChatGPT chat automatically and continue with full context.
 
-That behavior is a declared target, but it is **not currently verified as an available programmatic ChatGPT session-control API in this connected environment**. Therefore v1 does not pretend it can open or control a new ChatGPT conversation automatically.
+Current OpenAI documentation confirms that the OpenAI API can create API `Conversation` objects and that eligible Business/Enterprise Workspace Agents can be triggered by API. Those are not the same thing as programmatically opening a new ChatGPT Work conversation in the user's Plus-plan ChatGPT UI. No supported Plus-plan API for automatically opening a new ChatGPT Work chat in the UI has been verified as of 2026-09-09.
 
-What v1 already provides is the durable state layer needed for such a future handoff:
+Therefore CENTRAL must not fake that behavior. What it can already do safely is preserve the canonical handoff state so the next Chat/Work session can continue without rebuilding context:
 
 - canonical repository state;
 - canonical work items;
@@ -170,7 +211,7 @@ What v1 already provides is the durable state layer needed for such a future han
 - handoff packet format;
 - no duplicate execution rule.
 
-If a supported session-control surface becomes available, it should consume this state rather than create a separate memory system.
+A future supported session-control adapter should consume this state rather than create a separate memory system.
 
 ## Anti-fabrication rule
 
@@ -180,7 +221,8 @@ Never report any of the following as complete without live evidence from the own
 - Ollama running;
 - Obsidian vault connected;
 - PowerShell task executed;
-- new ChatGPT chat created automatically;
+- Windows autostart installed;
+- new ChatGPT Work chat created automatically;
 - Git change applied locally;
 - deployment completed;
 - social post published;
