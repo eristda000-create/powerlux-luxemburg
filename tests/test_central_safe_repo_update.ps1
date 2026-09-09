@@ -22,6 +22,8 @@ function Assert-Throws([scriptblock]$Action, [string]$Contains) {
     if ($_.Exception.Message -notlike "*$Contains*") {
       throw "ASSERT FAILED: expected exception containing '$Contains', got '$($_.Exception.Message)'"
     }
+  } finally {
+    $global:LASTEXITCODE = 0
   }
 }
 
@@ -86,7 +88,9 @@ try {
 
   Assert-Throws { Invoke-CentralSafeRepoUpdate -WorkDir $work -CanonicalRemote $remote | Out-Null } 'not an ancestor of origin/main'
 
+  $global:LASTEXITCODE = 0
   Write-Host 'CENTRAL safe repo update behavioral tests: PASS'
 } finally {
   Remove-Item -LiteralPath $root -Recurse -Force -ErrorAction SilentlyContinue
+  $global:LASTEXITCODE = 0
 }
