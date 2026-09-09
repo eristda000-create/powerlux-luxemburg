@@ -1,6 +1,6 @@
 # MERG AI OS — CURRENT STATE
 
-**As-of date:** 2026-09-08
+**As-of date:** 2026-09-09
 **Role:** interim group-level control state for MERG / PowerLux / PowerTV / Cogni.
 
 ## Executive truth
@@ -10,7 +10,7 @@
 
 `FACT` A separate private GitHub repository named `eristda000-create/cogni` exists and is accessible with admin/write permission.
 
-`FACT` Supabase management access on 2026-09-08 verified an active healthy project named `Cogni` plus one additional active healthy general project. Internal project refs/hosts are deliberately not duplicated into this public repository.
+`FACT` Supabase management access verified an active healthy project named `Cogni` plus one additional active healthy general project. Internal project refs/hosts are deliberately not duplicated into this public repository.
 
 `FACT` Authenticated Vercel management access on 2026-09-08 verified the connected Vercel team and the real `powerlux-luxembourg` project with a READY latest deployment. A public `*.vercel.app` hostname must still not be assumed to belong to that connected team without project/deployment evidence.
 
@@ -67,6 +67,56 @@
 `DECISION` MERG is the umbrella operating context. PowerLux, PowerTV, Cogni/Diffuse and future businesses should use a common production-first AI operating discipline.
 
 `OPEN` A dedicated MERG HQ repository is not currently verified/available through the connected GitHub account. Until one exists, this repository temporarily hosts the group AI operating rules.
+
+### MERG Value Engine — 2026-09-09
+`DECISION` The group-level autonomous value rule is **MONEY, KNOWLEDGE or BOTH**. Work that produces neither is deprioritized.
+
+`DONE` MERG Value Engine v1 is merged into `main` and integrated with the existing MERG Supabase control plane rather than a parallel data model.
+
+`DONE` Production policy `merg_ai_policy.value_engine` is enabled. Seven cross-project watch sources are registered for PowerLux sponsorship/sport, PowerTV media/rights, creator monetization, EU sport funding, Cogni AI/sports research and patent/prior-art research.
+
+`DONE` Production function `public.merg_value_engine_cycle()` reads canonical `merg_opportunities` + `merg_intelligence_events`, creates deduplicated work items in `core_engine_work_items`, and logs runs in `core_engine_runs`.
+
+`DONE` Cron job `merg-value-engine-cycle` is active at `8,38 * * * *`, i.e. every 30 minutes.
+
+`DONE / VERIFIED` First live verification created `24` MONEY and `5` KNOWLEDGE work items. An immediate second run created `0` and `0`, proving deduplication against unchanged inputs. Current stored Value Engine items are `24` MONEY + `5` KNOWLEDGE.
+
+`DONE / VERIFIED` Social Revenue Brief layer is active. `public.merg_social_revenue_brief_cycle()` converted all `24` MONEY work items into Instagram-first revenue briefs with objective, audience, hook, caption draft, CTA, monetization hypothesis and measurable KPIs. Immediate second run created `0`, proving deduplication.
+
+`DONE` Cron job `merg-social-revenue-brief-cycle` is active at `12,42 * * * *`, shortly after the Value Engine cycle.
+
+`DONE / VERIFIED` Value Feedback loop is active through `public.merg_value_feedback_cycle()` and cron `17,47 * * * *`. It attributes conversions/revenue only through explicit work-item/opportunity links. Initial verification found `0` verified conversions and `0` verified revenue, so it correctly updated `0` items instead of inventing attribution.
+
+`FACT` Metricool is connected to the MERG operating account as a real authenticated social planning/analytics surface. The Metricool brand exists, but at the latest verification its `networksData` was empty and it had `0` scheduled posts; therefore Instagram/Facebook publishing is not yet connected and must not be reported as live.
+
+`OPEN` Link the intended social network accounts inside the connected Metricool brand. Until a network appears there, generated social revenue briefs remain drafts and Best-Time/analytics signals are not meaningful.
+
+`RULE` The Value Engine and Social Revenue layer do not execute external irreversible actions by themselves. New outreach, public social publishing, price acceptance, purchases, contracts, public partner claims, legal/IP filings and paid campaigns remain governed by the existing MERG approval policy.
+
+`FACT` Existing active backend surfaces include `powerlux-content-engine`, `merg-jarvis`, `merg-jarvis-chat`, MERG market/revenue functions, `pg_cron` and `pg_net`; the Value Engine is a prioritization/routing layer over those capabilities.
+
+`OPEN` Supabase advisors still report broad pre-existing project-wide security/performance findings; no new SECURITY DEFINER/RLS exposure specific to the Value Engine was identified in the 2026-09-09 advisor run.
+
+### CENTRAL Workshop Bridge — 2026-09-09
+`DECISION` The cross-device/local execution work referred to as the user's "Werkstatt" is registered in the group control plane as `CENTRAL Workshop`; this does not invent or rename a separate canonical runtime repository. A dedicated local runtime repo remains unverified.
+
+`DONE / VERIFIED` Production MERG Supabase now contains group unit `central_workshop`, channel `central_workshop_local_bridge`, a bootstrap work item, heartbeat/self-test/claim/complete RPCs and watchdog cron `merg-workshop-watchdog` every 5 minutes.
+
+`DONE / VERIFIED` Active Edge Function `central-workshop-bridge` is the authenticated client gateway. It checks a signed-in user's email against the existing enabled `owner` ACL before using its server-side admin client for narrow bridge RPC calls.
+
+`DONE / VERIFIED` The four work RPCs are `SECURITY INVOKER` and executable only by `postgres`/`service_role`; direct `public`, `anon` and `authenticated` RPC access is revoked. The Supabase security advisor returned to the pre-existing count of `8` authenticated SECURITY DEFINER warnings after this hardening.
+
+`DONE` Canonical PC runner is `scripts/central_workshop_bridge.ps1`. It uses a publishable key + normal owner login and never requires a service-role key on the PC. v1 supports `bridge_self_test`, `ollama_prompt`, `git_status` and `git_diff`; arbitrary remote PowerShell is deliberately not enabled.
+
+`DONE / VERIFIED` The first physical Windows PC runtime is now connected as node `DESKTOP-FP4OP26-User`. Live backend evidence on 2026-09-09 shows channel status `active`, `runtime_verified=true`, `bridge_heartbeat_verified=true`, PowerShell `7.6.6`, Git `2.55.0.windows.3`, Ollama `ok`, and local model `qwen3:4b-instruct` detected. The Windows DPAPI session cache is present; Obsidian remains `not_configured`.
+
+`DONE / VERIFIED` End-to-end execution was proven with work item `7c148df1-b72a-47df-8ca7-607ff9cc49a8` (`CENTRAL Workshop end-to-end git status probe`). The node claimed the approved `AUTO_SAFE` task, executed `git_status` against `C:\Users\User\powerlux-luxemburg`, returned `## main...origin/main`, and the backend recorded `status=completed` with `verified=true`.
+
+`OPEN` Windows autostart is not yet verified. Run `scripts/install-central-workshop-autostart.ps1`, then confirm a fresh heartbeat after a new Windows sign-in before calling autostart complete.
+
+`OPEN` Obsidian is not yet attached. Configure the real local vault path through `OBSIDIAN_VAULT` and require a subsequent Workshop self-test with `obsidian=ok` before calling local memory connected.
+
+`RULE` Do not report automatic Work→new-chat handoff as active; no supported Plus-plan API for opening a new ChatGPT Work conversation in the UI has been verified. Read `merg_os/CENTRAL_WORKSHOP_BRIDGE.md` before any Workshop work.
 
 ## Non-negotiable truth rule
 Chat memory is not a deployment database. A statement such as "we already connected/deployed/built this" must be checked against the relevant real system whenever the answer or action depends on it.

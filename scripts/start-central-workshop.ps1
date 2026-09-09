@@ -1,0 +1,49 @@
+param(
+  [switch]$Once,
+  [int]$PollSeconds = 30
+)
+
+$ErrorActionPreference = 'Stop'
+
+$env:CENTRAL_SUPABASE_URL = 'https://fgkowgpauqexcwwtrxyd.supabase.co'
+$env:CENTRAL_SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_EsHCY_P-NxhOMNHRQCZqnw_nPPoCjqr'
+
+$repoRoot = Split-Path -Parent $PSScriptRoot
+if ([string]::IsNullOrWhiteSpace($env:CENTRAL_WORKDIR)) {
+  $env:CENTRAL_WORKDIR = $repoRoot
+}
+
+if ([string]::IsNullOrWhiteSpace($env:OLLAMA_URL)) {
+  $env:OLLAMA_URL = 'http://127.0.0.1:11434'
+}
+
+function Test-Ollama {
+  try {
+    $null = Invoke-RestMethod -Method Get -Uri "$($env:OLLAMA_URL.TrimEnd('/'))/api/tags" -TimeoutSec 4
+    return $true
+  } catch { return $false }
+}
+
+if (-not (Test-Ollama)) {
+  $ollama = Get-Command ollama -ErrorAction SilentlyContinue
+  if ($null -ne $ollama) {
+    Write-Host 'Ollama is installed but not responding. Starting ollama serve...'
+    if ($IsWindows) {
+      Start-Process -FilePath $ollama.Source -ArgumentList 'serve' -WindowStyle Hidden | Out-Null
+    } else {
+      Start-Process -FilePath $ollama.Source -ArgumentList 'serve' | Out-Null
+    }
+    Start-Sleep -Seconds 2
+  }
+}
+
+if (-not (Test-Ollama)) {
+  Write-Warning 'Ollama is not reachable. The bridge will start, but runtime verification will remain false until Ollama responds.'
+}
+
+$runner = Join-Path $PSScriptRoot 'central_workshop_bridge.ps1'
+if (-not (Test-Path -LiteralPath $runner -PathType Leaf)) {
+  throw "Bridge runner not found: $runner"
+}
+
+& $runner -Once:$Once -PollSeconds $PollSeconds

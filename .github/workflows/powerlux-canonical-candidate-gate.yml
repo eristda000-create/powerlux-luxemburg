@@ -1,0 +1,53 @@
+name: PowerLux Canonical Candidate Gate
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '11 */6 * * *'
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/powerlux_release_candidate_probe.py'
+      - '.github/workflows/powerlux-canonical-candidate-gate.yml'
+      - 'powerlux_os/CURRENT_STATE.md'
+
+permissions:
+  contents: read
+
+jobs:
+  candidate-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    env:
+      POWERLUX_CANDIDATE_URL: https://powerlux-luxembourg-p0b1w7ine-eristda000-2732s-projects.vercel.app
+
+    steps:
+      - name: Checkout control repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Probe canonical recovery candidate
+        id: probe
+        continue-on-error: true
+        run: python scripts/powerlux_release_candidate_probe.py
+
+      - name: Upload candidate evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: powerlux-canonical-candidate-probe
+          path: |
+            powerlux_candidate_probe_report.md
+            powerlux_candidate_probe_report.json
+          retention-days: 14
+
+      - name: Enforce candidate gate
+        if: steps.probe.outcome == 'failure'
+        run: |
+          echo 'Canonical PowerLux recovery candidate is not promotion-ready.'
+          echo 'Review the evidence artifact and PR #6 release-review comment.'
+          exit 1

@@ -1,0 +1,64 @@
+{
+  "version": 1,
+  "discovery_only": true,
+  "max_items_per_source": 12,
+  "minimum_priority": 48,
+  "sources": [
+    {
+      "id": "lu-strength-sport",
+      "label": "Luxembourg strength and niche sport",
+      "type": "rss",
+      "url": "https://news.google.com/rss/search?q=armwrestling%20OR%20powerlifting%20OR%20strength%20sport%20Luxembourg&hl=en&gl=LU&ceid=LU:en",
+      "default_project": "PowerLux",
+      "tags": ["sport", "event", "athlete", "club"]
+    },
+    {
+      "id": "benelux-sponsorship",
+      "label": "Benelux sports sponsorship and partnerships",
+      "type": "rss",
+      "url": "https://news.google.com/rss/search?q=sports%20sponsorship%20OR%20sports%20partnership%20Benelux&hl=en&gl=LU&ceid=LU:en",
+      "default_project": "PowerLux",
+      "tags": ["sponsor", "partnership", "revenue"]
+    },
+    {
+      "id": "sports-streaming",
+      "label": "Sports streaming and niche media",
+      "type": "rss",
+      "url": "https://news.google.com/rss/search?q=sports%20streaming%20niche%20sports%20media%20rights&hl=en&gl=LU&ceid=LU:en",
+      "default_project": "PowerTV",
+      "tags": ["streaming", "media", "rights", "content"]
+    },
+    {
+      "id": "ai-sports-tech",
+      "label": "AI and sports technology",
+      "type": "rss",
+      "url": "https://news.google.com/rss/search?q=AI%20sports%20technology%20startup%20analytics&hl=en&gl=LU&ceid=LU:en",
+      "default_project": "Cogni",
+      "tags": ["ai", "technology", "research", "product"]
+    },
+    {
+      "id": "creator-monetization",
+      "label": "Creator and social monetization",
+      "type": "rss",
+      "url": "https://news.google.com/rss/search?q=creator%20monetization%20Instagram%20sports%20affiliate%20sponsorship&hl=en&gl=LU&ceid=LU:en",
+      "default_project": "MERG",
+      "tags": ["instagram", "creator", "affiliate", "content", "revenue"]
+    },
+    {
+      "id": "sport-funding-europe",
+      "label": "European sport funding and grants",
+      "type": "rss",
+      "url": "https://news.google.com/rss/search?q=European%20sport%20funding%20grant%20Erasmus%20sport&hl=en&gl=LU&ceid=LU:en",
+      "default_project": "PowerLux",
+      "tags": ["funding", "grant", "europe", "sport"]
+    },
+    {
+      "id": "ai-patent",
+      "label": "AI patents and applied research",
+      "type": "rss",
+      "url": "https://news.google.com/rss/search?q=AI%20patent%20sports%20analytics%20computer%20vision%20research&hl=en&gl=LU&ceid=LU:en",
+      "default_project": "Cogni",
+      "tags": ["patent", "research", "ai", "technology"]
+    }
+  ]
+}

@@ -1,0 +1,73 @@
+name: PowerLux Canonical Source Gate
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/powerlux-canonical-source-gate.yml'
+  schedule:
+    - cron: '17 */2 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  source-contract:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout canonical recovery branch
+        uses: actions/checkout@v4
+        with:
+          ref: canonical-release-2026-09-06
+          fetch-depth: 1
+
+      - name: JavaScript syntax
+        run: node --check powerlux-runtime.js && node --check plx-radar-v3.js
+
+      - name: Verify recovery source contract
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import json
+          import sys
+
+          runtime = Path('powerlux-runtime.js').read_text(encoding='utf-8')
+          radar = Path('plx-radar-v3.js').read_text(encoding='utf-8')
+          index = Path('index.html').read_text(encoding='utf-8')
+
+          checks = {}
+          checks['runtime_before_radar'] = index.find('/powerlux-runtime.js') >= 0 and index.find('/powerlux-runtime.js') < index.find('/plx-radar-v3.js')
+          checks['direct_discovery_contract'] = 'powerlux-discovery' in runtime and 'powerlux-discovery' in radar
+          checks['explicit_degraded_detection'] = 'discovery_temporarily_unavailable' in runtime and 'discoveryDegradedHandling' in runtime
+          checks['degraded_visible_to_user'] = 'data-plx-discovery-degraded' in runtime or 'plxDiscoveryDegraded' in runtime
+          checks['osm_fallback_preserved'] = 'OVERPASS_ENDPOINTS' in radar and 'overpass-api.de/api/interpreter' in radar
+          checks['startup_location_guard'] = 'geolocationGuard' in runtime and 'navigator.permissions.query' in runtime and 'explicitLocationUntil' in runtime
+          checks['contact_server_intake'] = 'powerlux-revenue-intake' in runtime
+          checks['contact_runtime_copy_normalized'] = 'contactCtaNormalized' in runtime and 'Anfrage senden' in runtime and 'Send request' in runtime
+          checks['tracking_source_recovered'] = any(Path(p).exists() for p in ('api/track.js','api/track.ts','api/track.mjs','api/track.cjs'))
+
+          legacy_static_contact = 'E-Mail vorbereiten' in index
+          failures = [name for name, ok in checks.items() if not ok]
+          report = {
+              'branch': 'canonical-release-2026-09-06',
+              'checks': checks,
+              'legacy_static_contact_copy_present': legacy_static_contact,
+              'failures': failures,
+              'source_ready': not failures,
+              'note': 'Runtime contact normalization is verified separately from the static legacy label. /api/track remains a hard source-recovery gate.'
+          }
+          print(json.dumps(report, indent=2, ensure_ascii=False))
+          Path('powerlux_source_gate_report.json').write_text(json.dumps(report, indent=2, ensure_ascii=False) + '\n', encoding='utf-8')
+          if failures:
+              sys.exit(1)
+          PY
+
+      - name: Upload source evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: powerlux-canonical-source-gate
+          path: powerlux_source_gate_report.json
+          retention-days: 14

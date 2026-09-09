@@ -2,6 +2,52 @@
 
 Use these short commands directly in the ChatGPT phone app.
 
+## CENTRAL mobile operations
+
+`CENTRAL: PC status`
+→ verifies the real Workshop node through the connected control plane and reports heartbeat, runtime verification, Ollama models, active local job, waiting jobs and the exact boundary of what is not observable remotely. Never infer CPU/screen/UI activity from heartbeat alone.
+
+`CENTRAL: Qwen`
+→ returns what local Ollama/Qwen actually completed, what is currently `reviewing`, what is waiting, and the ChatGPT control review of each result. Qwen output is draft evidence, not automatically project truth.
+
+`CENTRAL: arbeiten — <objective>`
+→ creates a bounded `AUTO_SAFE` local execution sequence for the verified PC when the objective can be handled by supported Workshop capabilities. Relevant verified context is brokered into the job. External messages, deployments, purchases, contracts and arbitrary PowerShell remain excluded unless a later named capability is explicitly approved and verified.
+
+`CENTRAL: weiter`
+→ continues the current project objective from canonical state: check the PC/queue, review completed Qwen outputs, reject unsupported claims, enqueue the next smallest useful local jobs, and execute available cloud-side GitHub/Supabase/Vercel/research work. Do not create filler jobs merely to keep the PC busy.
+
+`CENTRAL: Context <topic>`
+→ refreshes a Verified Context Packet from authoritative connected systems. Labels must distinguish `FACT`, `CONNECTOR_FACT`, `USER_FACT`, `OPEN`, `QWEN_DRAFT` and `REJECTED` so local models do not silently promote previous suggestions into truth.
+
+`CENTRAL: PC update`
+→ reports whether the local checkout is behind canonical Git and what update is needed. It must not claim a pull/restart happened unless a supported remote capability actually performed it and runtime evidence confirms the new commit. The current Workshop deliberately has no unrestricted remote shell.
+
+### Mobile operating loop
+
+Preferred phone → PC loop:
+
+```text
+Phone / ChatGPT command
+        ↓
+authoritative connector checks
+        ↓
+CENTRAL Verified Context Packet
+        ↓
+approved AUTO_SAFE work item
+        ↓
+Windows Workshop bridge
+        ↓
+Ollama / Qwen local work
+        ↓
+CENTRAL result
+        ↓
+ChatGPT control review
+        ↓
+next execution action / user-visible result
+```
+
+A completed Qwen response is not enough to call a task complete. ChatGPT must compare consequential claims with the owning source (GitHub, Vercel, Supabase, web evidence, etc.) before accepting them.
+
 ## Daily control
 `PowerLux OS: heute`
 → reads Bootstrap + Current State + Dashboard; returns the 3 highest-value next actions.

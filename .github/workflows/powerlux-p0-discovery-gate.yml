@@ -1,0 +1,52 @@
+name: PowerLux P0 Discovery Gate
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '29 */2 * * *'
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/powerlux_p0_probe.py'
+      - 'powerlux_os/WEBSITE_AUDIT_2026-09-06.md'
+      - 'powerlux_os/CURRENT_STATE.md'
+      - '.github/workflows/powerlux-p0-discovery-gate.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  discovery-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+
+    steps:
+      - name: Checkout canonical control repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Probe production and supported discovery upstream
+        id: probe
+        continue-on-error: true
+        run: python scripts/powerlux_p0_probe.py
+
+      - name: Upload evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: powerlux-p0-discovery-probe
+          path: |
+            powerlux_p0_probe_report.md
+            powerlux_p0_probe_report.json
+          retention-days: 14
+
+      - name: Enforce release gate
+        if: steps.probe.outcome == 'failure'
+        run: |
+          echo 'PowerLux P0 discovery gate failed. Production /api/sports and the supported discovery upstream are checked separately.'
+          echo 'See the uploaded evidence artifact and GitHub Issue #5. Do not interpret a healthy root page as a healthy PowerMap discovery contract.'
+          exit 1

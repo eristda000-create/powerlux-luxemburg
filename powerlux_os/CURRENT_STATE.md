@@ -1,6 +1,6 @@
 # POWERLUX CURRENT STATE
 
-**As-of date:** 2026-09-06
+**As-of date:** 2026-09-10
 **Status:** Execution phase / evidence-building
 
 ## Executive truth
@@ -47,13 +47,13 @@ These are targets, not verified accomplishments.
 ### Website audit update — 2026-09-06
 `FACT` The current production root at `powerlux-luxembourg.vercel.app` is a recovery/loader layer that fetches the core Hub HTML from a historical Vercel deployment at runtime and injects release assets from another historical deployment.
 
-`FACT` The connected GitHub repository does not currently contain the complete canonical public website source, and the inspected Vercel project is not Git-linked. This means source-of-truth, rollback and reproducible release controls are not yet at the target state.
+`FACT` The connected GitHub repository does not currently contain the complete canonical public website source on `main`, and the inspected Vercel project is not Git-linked. This means source-of-truth, rollback and reproducible release controls are not yet at the target state.
 
-`FACT` `robots.txt` and `sitemap.xml` currently return 404 on production.
+`FACT` `robots.txt` and `sitemap.xml` returned 404 on production at the 06.09 audit snapshot.
 
-`FACT / P0 DEFECT` Production `/api/sports` currently returns 404. The injected release layer redirects fresh PowerLux Discovery requests to that route and converts failure into an empty synthetic response, so live PowerMap discovery can silently lose fresh place results instead of showing an explicit outage/degraded state. The historical BASE deployment route also returns 404.
+`FACT / P0 DEFECT` Production `/api/sports` returns 404. The injected release layer redirects fresh PowerLux Discovery requests to that route and converts failure into an empty synthetic response, so live PowerMap discovery can silently lose fresh place results instead of showing an explicit outage/degraded state. The historical BASE deployment route also returned 404.
 
-`FACT` The public website has extensive functionality, but the current contact form uses a `mailto:` handoff rather than the already-live server-side PowerLux revenue-intake pipeline.
+`FACT` The public website has extensive functionality, but the audited public contact form uses a `mailto:` handoff rather than the already-live server-side PowerLux revenue-intake pipeline.
 
 `DONE` Production database hardening now prevents authenticated members from changing their own `profiles.age_group` after account creation. This closes a path by which an under-age account could otherwise attempt to self-escalate into adult-only Radar functionality.
 
@@ -64,6 +64,40 @@ These are targets, not verified accomplishments.
 `OPEN / P0` Do not promote frontend changes by deepening the existing loader chain. First establish canonical source → Git → preview → tests → rollback → production promotion.
 
 Evidence and release gates: `powerlux_os/WEBSITE_AUDIT_2026-09-06.md`; tracked production discovery defect: GitHub Issue #5.
+
+### Mobile operations / canonical recovery update — 2026-09-10
+
+`FACT` Authenticated Vercel access re-verified the real project `powerlux-luxembourg`. The production alias resolves to deployment `dpl_23FWVEgsncoE4eQcW2eEuWt5aMAK`; production `/api/sports` remains HTTP 404 / `NOT_FOUND`. The Vercel project is still not Git-linked, so a Git commit does not automatically establish a new preview deployment.
+
+`FACT` Supabase `powerlux-discovery` is ACTIVE, version 12, and is the real current Discovery engine. It combines PowerLux verified entities/partners/cache with OSM Overpass and Photon fallback, ranking/diversity selection, source-health evidence and an IP-hash abuse/rate guard. The exact current request/response/degraded contract is frozen in `powerlux_os/POWERMAP_DISCOVERY_CONTRACT.md`.
+
+`DONE` `scripts/powerlux_p0_probe.py` and `.github/workflows/powerlux-p0-discovery-gate.yml` test the production root, production discovery contract and supported Discovery upstream separately. Verified gate evidence: production root HTTP 200 PASS, production `/api/sports` HTTP 404 FAIL, direct Discovery upstream HTTP 200 PASS with 30 returned places in the measured run.
+
+`FACT / PRIMARY RECOVERY CANDIDATE` Draft PR #6 (`canonical-release-2026-09-06`) contains the recovered Git-native PowerLux Hub: canonical `index.html`, local runtime assets, direct `powerlux-discovery` integration, revenue-intake form flow, robots/sitemap/privacy and Vercel headers. The last deployed candidate preview remains READY/noindex, but it predates the newest runtime hardening commit because the Vercel project is not Git-linked.
+
+`DONE / MERGE RECONCILIATION` PR #6 was reconciled against newer control-plane work by synchronizing `powerlux_os/CURRENT_STATE.md` and `powerlux_os/MOBILE_COMMANDS.md`; GitHub now reports the draft PR as `mergeable=true`. It must remain unmerged until release gates pass.
+
+`DONE / SOURCE HARDENING` PR #6 commit `61a8451ab51ae1e499efcd41e473998e9bd99c9b` hardens `powerlux-runtime.js` before the Radar runtime initializes. It detects the explicit upstream `discovery_temporarily_unavailable` error, exposes a degraded-state notice, forces the already-existing OSM fallback path instead of treating the degraded response as a legitimate zero-result scan, blocks startup geolocation prompts unless browser permission is already granted or the user deliberately scans, and normalizes the contact submit CTA to match the server-side revenue-intake behavior.
+
+`DONE / SOURCE QA` `.github/workflows/powerlux-canonical-source-gate.yml` checks the current recovery branch directly even without a new Vercel preview. Run `34417923057` checked PR #6 head `61a8451…`: JavaScript syntax PASS; runtime-before-Radar PASS; direct Discovery contract PASS; explicit degraded detection PASS; user-visible degraded notice PASS; OSM fallback preserved PASS; startup-location guard PASS; revenue-intake contract PASS; runtime contact-copy normalization PASS. The only hard source failure was `tracking_source_recovered=false`.
+
+`OPEN / CLEANUP` Static `index.html` still contains the legacy `E-Mail vorbereiten` submit label. The committed runtime now replaces it for the executed UI, but canonical static copy should eventually be normalized too. This is tracked as cleanup rather than evidence that the server-side intake is missing.
+
+`BLOCKED / PREVIEW VERIFICATION` The new PR #6 runtime hardening is committed and source-gated but is not yet verified on a fresh Vercel preview. The existing latest preview deployment `dpl_2hrM75j9DekQmimadJ8NG8dp9FCN` was created before commit `61a8451…`. Do not call the runtime hardening live until a source-specific preview is created and re-probed.
+
+`FACT / TRACKING CONTRACT` Production `/api/track` is a real Serverless Function on production deployment `dpl_23FWVEgsncoE4eQcW2eEuWt5aMAK`; read-only runtime evidence returned HTTP 405 with `Allow: POST`, and Vercel runtime logs identify `/api/track` as a serverless route. The public tracking client sends a compact contract consisting of action, pseudonymous visitor/session identifiers, source, campaign and path.
+
+`BLOCKED / TRACKING SOURCE` The server source for production `/api/track` has not been recovered. It is absent from current Git history/search and no matching PowerLux web-analytics store was found in the current Supabase public schema. Vercel documents a deployment-files API that could expose source for CLI/API deployments, but that read endpoint is not exposed by the currently connected Vercel tool. Do not invent a replacement analytics store or claim historical recovery without source evidence.
+
+`RISK` The current production tracking client exposes a client-side owner/exclusion mechanism. Its value is intentionally not copied into canonical state or new source. If tracking is deliberately replaced instead of historically recovered, owner filtering and privacy must be redesigned rather than copied verbatim.
+
+`FACT / POWERTV BACKEND FOUNDATION` PowerTV original source remains `SOURCE UNVERIFIED`, but the shared Supabase backend is real. Tables `profiles`, `powertv_content`, `powertv_watchlist`, `powertv_reminders`, `power_map_entities` and `powerlux_content_queue` exist. Five current PowerTV→PowerLux editorial drafts were verified as `draft + pending_review + rights pending + auto_publish=false`. The stale-live cron and live-truth/editorial-sync triggers are active.
+
+`FACT / EVENT EXECUTION` The existing `Vendetta 2026 · Luxembourg` PowerTV catalog object remains date-TBC for 07.11.2026 and does not claim a confirmed livestream. Its linked PowerLux editorial draft is connected to CENTRAL, remains `draft + pending_review + rights pending + auto_publish=false`, carries planning assumptions of roughly 20 supermatches / 60 attendees, and now has explicit publication and measurement gates for date, venue, matchups, rights, partner branding, result evidence, asset fulfillment, attendance, content output, reach/clickthrough and sponsor outcomes.
+
+`BLOCKED / INTEGRATION` Draft PR #8 correctly links PowerLux toward the existing ChatGPT Sites PowerTV runtime and preserves the source boundary, but its frontend tracking calls same-origin `/api/track`. This remains incompatible with the recovery branch until the canonical tracking route is historically recovered or deliberately replaced with an evidence-backed contract. PR #8 must follow canonical PowerLux recovery rather than race it.
+
+`DECISION` Treat PR #6 as the primary PowerLux canonical-source recovery path and PR #8 as a dependent PowerLux↔PowerTV integration path. Do not create a third frontend implementation. Fix/test the candidate in this order: tracking source decision → fresh PR #6 preview → candidate gates → controlled promotion; only then reconcile PR #8.
 
 ## Legal / structural truth
 `OPEN` Final entity/legal/tax/insurance configuration is not treated as completed by the source material. The strategy documents discuss company + sport structure/ASBL variants, but implementation requires legal/tax/insurance validation.
@@ -84,10 +118,12 @@ Do not silently merge these into one claim. Treat sport-focus and entity timing 
 4. Hold serious conversations and record every next step/date in CRM.
 5. Select first visible pilot and calculate budget/minimum price.
 6. Check risk, insurance, permit, invoicing/TVA and contract requirements before binding delivery.
-7. **Canonicalize the public website source/deployment chain and restore fresh PowerMap discovery in production; keep live security fixes in place; validate and then promote the conversion preview.**
-8. Instrument conversion and operational evidence.
-9. Produce a 48-hour review after each real pilot/event.
-10. Convert first proof into a case study/reference and repeatable offer.
+7. **Resolve `/api/track` as an explicit recovery-vs-replacement decision; do not fabricate historical source.**
+8. **Create a fresh source-specific PR #6 preview containing commit `61a8451…`, then rerun source + runtime candidate gates before any merge/promotion.**
+9. Instrument conversion and operational evidence without copying the current client-side owner-exclusion mechanism blindly.
+10. Produce a 48-hour review after each real pilot/event.
+11. Convert first proof into a case study/reference and repeatable offer.
+12. **Only after PowerLux canonical recovery, reconcile PR #8 and keep PowerTV source/rights boundaries intact.**
 
 ## Financial truth rule
 Business-plan revenue ranges, budget ranges and break-even examples are **planning assumptions**, not actuals. Actual revenue, cash, margin and pipeline numbers must come from current operational evidence.
