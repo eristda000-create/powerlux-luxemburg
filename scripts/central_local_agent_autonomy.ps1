@@ -52,7 +52,7 @@ function Invoke-CentralAutonomySafeAction {
       }
       $file = Resolve-CentralSafeTextFile -Root $WorkDir -RelativePath $relative
       $text = Get-Content -LiteralPath $file -Raw -ErrorAction Stop
-      $max = [Math]::Min(8000,$text.Length)
+      $max = [Math]::Min(4000,$text.Length)
       return [ordered]@{ name=$name; ok=$true; path=$relative; content=$text.Substring(0,$max) }
     }
     'obsidian_read' {
@@ -63,13 +63,13 @@ function Invoke-CentralAutonomySafeAction {
       if ([string]::IsNullOrWhiteSpace($relative)) { throw 'obsidian_read requires path.' }
       $file = Resolve-CentralSafeTextFile -Root $ObsidianVault -RelativePath $relative
       $text = Get-Content -LiteralPath $file -Raw -ErrorAction Stop
-      $max = [Math]::Min(8000,$text.Length)
+      $max = [Math]::Min(4000,$text.Length)
       return [ordered]@{ name=$name; ok=$true; path=$relative; content=$text.Substring(0,$max) }
     }
     'handoff_checkpoint' {
       $text = [string]$Action.content
       if ([string]::IsNullOrWhiteSpace($text)) { throw 'handoff_checkpoint requires content.' }
-      if ($text.Length -gt 12000) { $text = $text.Substring(0,12000) }
+      if ($text.Length -gt 8000) { $text = $text.Substring(0,8000) }
       $dir = Join-Path (Join-Path $HOME '.central') 'handoffs'
       if (-not (Test-Path -LiteralPath $dir -PathType Container)) {
         New-Item -ItemType Directory -Path $dir -Force | Out-Null
@@ -119,20 +119,19 @@ function Invoke-CentralLocalAutonomy {
 You are CENTRAL's local Safe-Action Planner.
 Objective: $objective
 
-You may choose zero to three actions ONLY from this allowlist:
-1. health_snapshot
-2. git_status
-3. git_diff_stat
-4. repo_read with a repository-relative text path
-5. obsidian_read with a vault-relative text path (only if configured)
-6. handoff_checkpoint with short Markdown content
+Choose zero to three actions ONLY from:
+- health_snapshot
+- git_status
+- git_diff_stat
+- repo_read with repository-relative text path
+- obsidian_read with vault-relative text path, only if configured
+- handoff_checkpoint with short Markdown content
 
 Rules:
-- These actions are for evidence gathering and continuity only.
-- Never request shell commands, file modifications in the repository, Git commits/pushes, deployment, browser control, messages, authentication changes or external side effects.
-- Prefer zero actions when the existing evidence is enough.
-- Output ONLY valid JSON in this exact shape:
-{"actions":[{"name":"git_status"}]}
+- Evidence gathering and continuity only.
+- Never request shell commands, repository modification, commit/push, deployment, browser control, messages, auth changes or external side effects.
+- Prefer zero actions when evidence is sufficient.
+- Output ONLY compact valid JSON, e.g. {"actions":[{"name":"git_status"}]}.
 
 ANALYST:
 $analyst
@@ -141,7 +140,7 @@ GUARDIAN:
 $guardian
 "@
 
-  $raw = Invoke-CentralOllamaAgent -OllamaUrl $OllamaUrl -Model $model -Prompt $plannerPrompt
+  $raw = Invoke-CentralOllamaAgent -OllamaUrl $OllamaUrl -Model $model -Prompt $plannerPrompt -MaxTokens 96 -ContextTokens 3072 -TimeoutSec 90
   $plan = ConvertFrom-CentralAgentJson -Text $raw
   if ($null -eq $plan -or $null -eq $plan.actions) {
     return [ordered]@{ enabled=$true; planner_model=$model; plan_valid=$false; raw=$raw; executed=@() }
@@ -158,6 +157,7 @@ $guardian
 
   return [ordered]@{
     enabled = $true
+    performance_profile = 'low_resource_v2'
     planner_model = $model
     plan_valid = $true
     requested = @($plan.actions | Select-Object -First 3)
