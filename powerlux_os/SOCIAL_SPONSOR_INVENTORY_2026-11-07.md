@@ -17,7 +17,7 @@ Every Supermatch can become:
 - post-event result card;
 - sponsor-tagged recap unit.
 
-This creates many more sponsor impressions than the room capacity alone suggests.
+This creates many more sponsor impressions than the room capacity alone suggests, but the value must be proven with actual delivery and analytics rather than assumed reach.
 
 ## Sponsor inventory
 
@@ -46,6 +46,71 @@ This creates many more sponsor impressions than the room capacity alone suggests
 16. sampling where legally/operationally appropriate;
 17. VIP/partner seating block;
 18. prize/trophy support where federation/event rules allow.
+
+## Sponsor measurement pack — added 2026-09-10
+
+Every paid or value-exchange package should have a measurement sheet **before** it is sold.
+
+### A. Asset ledger
+For every promised asset record:
+- asset ID;
+- package/sponsor;
+- channel: venue / PowerLux / social / PowerTV when source+rights permit;
+- planned publish/display window;
+- owner;
+- rights/approval status;
+- delivered yes/no;
+- evidence URL/file/photo;
+- actual reach/view metric if available.
+
+Primary KPI: **deliverable fulfillment rate**.
+
+A package that cannot be fulfilled reliably is not a scalable product even if the concept sounds attractive.
+
+### B. Attention metrics
+Use actual platform/event data only:
+- post/reel views or reach;
+- video starts/watch time where available;
+- matchup/result shares and saves;
+- athlete/event profile visits;
+- event attendance.
+
+Do not convert these automatically into monetary media value without an agreed methodology.
+
+### C. Action metrics
+Where appropriate, attach a unique measurable path:
+- UTM-tagged sponsor CTA;
+- sponsor-specific landing/lead reference;
+- opt-in form source;
+- voucher/referral code only when sponsor economics genuinely use one;
+- qualified sponsor/customer inquiry attributed to the activation.
+
+Primary principle: **attention → action**, not logo exposure alone.
+
+### D. Sponsor report after event
+Minimum one-page report:
+1. contracted assets;
+2. fulfilled assets + evidence;
+3. actual attendance/content metrics;
+4. CTA/lead outcomes where measurable;
+5. strongest content unit;
+6. misses/deviations;
+7. recommendation: renew / change / stop.
+
+No vanity ROI claim if the required attribution data does not exist.
+
+## Rights and claim matrix
+
+Each content/sponsor asset must be assigned one of:
+- `GREEN` — rights/consent/source verified; may be prepared/published within normal approval rules;
+- `AMBER` — asset can be designed/prepared but athlete, venue, sponsor, event or media-right approval is still required;
+- `RED` — must not be used/published because rights/source/partnership is unverified.
+
+Examples:
+- confirmed event logo placement → GREEN only after agreement;
+- Jacques Schneider collaborative artwork → AMBER until explicit artist approval, never assumed from a repost;
+- PowerTV replay sponsor → RED until original PowerTV source + content rights path is verified;
+- generic internal sponsor mock package with placeholder `[Brand]` → planning only, never published as a real partner.
 
 ## Content calendar
 
@@ -154,6 +219,21 @@ Price floors should be calculated from:
 - production effort;
 - whether partner provides cash or real cost-offset value.
 
+### Package economics worksheet
+Before quoting a package, calculate:
+
+`price floor = direct incremental delivery cost + allocated event/media cost + required contribution margin`
+
+Then assess upside separately from the floor:
+- exclusivity premium;
+- scarce placement value;
+- repeated media inventory;
+- athlete/story usage rights;
+- measurable lead/action opportunity;
+- renewal/case-study value.
+
+Do not set price only by estimated impressions.
+
 ## Earned-media angles
 
 1. `Luxembourg's overlooked sports get a stage`.
@@ -186,6 +266,17 @@ After event:
 - earned media placements;
 - inbound venue/sponsor/event inquiries;
 - repeat-event demand.
+
+### Decision KPIs
+The metrics that should actually change a decision are:
+1. sponsor asset fulfillment rate;
+2. cost/time per content unit;
+3. share/clip → PowerLux profile/event clickthrough;
+4. event/partner CTA → qualified lead conversion;
+5. sponsor renewal or follow-up intent backed by a concrete next step.
+
+## 2026 external strategy input
+Current sports-media research and industry practice increasingly emphasize direct fan relationships, highlights/on-demand content and measurable sponsor activation across multiple touchpoints. Use this only as a design input; PowerLux value must still be proven from its own event/content analytics.
 
 ## Non-negotiable
 
