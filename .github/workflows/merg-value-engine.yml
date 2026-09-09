@@ -10,6 +10,7 @@ on:
       - 'merg_os/VALUE_ENGINE.md'
       - 'merg_os/value_sources.json'
       - 'scripts/merg_value_engine.py'
+      - 'tests/test_merg_value_engine.py'
       - '.github/workflows/merg-value-engine.yml'
 
 permissions:
@@ -29,6 +30,9 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+
+      - name: Run unit tests
+        run: python -m unittest tests/test_merg_value_engine.py
 
       - name: Run MERG Value Engine
         id: value
