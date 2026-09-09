@@ -1,6 +1,6 @@
 # MERG AI OS — CURRENT STATE
 
-**As-of date:** 2026-09-08
+**As-of date:** 2026-09-09
 **Role:** interim group-level control state for MERG / PowerLux / PowerTV / Cogni.
 
 ## Executive truth
@@ -10,7 +10,7 @@
 
 `FACT` A separate private GitHub repository named `eristda000-create/cogni` exists and is accessible with admin/write permission.
 
-`FACT` Supabase management access on 2026-09-08 verified an active healthy project named `Cogni` plus one additional active healthy general project. Internal project refs/hosts are deliberately not duplicated into this public repository.
+`FACT` Supabase management access verified an active healthy project named `Cogni` plus one additional active healthy general project. Internal project refs/hosts are deliberately not duplicated into this public repository.
 
 `FACT` Authenticated Vercel management access on 2026-09-08 verified the connected Vercel team and the real `powerlux-luxembourg` project with a READY latest deployment. A public `*.vercel.app` hostname must still not be assumed to belong to that connected team without project/deployment evidence.
 
@@ -67,6 +67,27 @@
 `DECISION` MERG is the umbrella operating context. PowerLux, PowerTV, Cogni/Diffuse and future businesses should use a common production-first AI operating discipline.
 
 `OPEN` A dedicated MERG HQ repository is not currently verified/available through the connected GitHub account. Until one exists, this repository temporarily hosts the group AI operating rules.
+
+### MERG Value Engine — 2026-09-09
+`DECISION` The group-level autonomous value rule is **MONEY, KNOWLEDGE or BOTH**. Work that produces neither is deprioritized.
+
+`DONE` A real MERG Value Engine is implemented on branch `feature/merg-value-engine-v1` and integrated with the existing MERG Supabase control plane rather than a parallel data model.
+
+`DONE` Production policy `merg_ai_policy.value_engine` is enabled. Seven cross-project watch sources are registered for PowerLux sponsorship/sport, PowerTV media/rights, creator monetization, EU sport funding, Cogni AI/sports research and patent/prior-art research.
+
+`DONE` Production function `public.merg_value_engine_cycle()` reads canonical `merg_opportunities` + `merg_intelligence_events`, creates deduplicated work items in `core_engine_work_items`, and logs runs in `core_engine_runs`.
+
+`DONE` Cron job `merg-value-engine-cycle` is active at `8,38 * * * *`, i.e. every 30 minutes.
+
+`DONE / VERIFIED` First live verification created `24` MONEY and `5` KNOWLEDGE work items. An immediate second run created `0` and `0`, proving deduplication against unchanged inputs. Current stored Value Engine items are `24` MONEY + `5` KNOWLEDGE.
+
+`RULE` The Value Engine does not execute external irreversible actions by itself. New outreach, public social publishing, price acceptance, purchases, contracts, public partner claims, legal/IP filings and paid campaigns remain governed by the existing MERG approval policy.
+
+`FACT` Existing active backend surfaces include `powerlux-content-engine`, `merg-jarvis`, `merg-jarvis-chat`, MERG market/revenue functions, `pg_cron` and `pg_net`; the Value Engine is a prioritization/routing layer over those capabilities.
+
+`OPEN` A real social publisher/analytics adapter is not yet connected. Social content can be generated and queued, but publishing must not be reported as automatic until an authenticated publisher connection is verified.
+
+`OPEN` Supabase advisors still report broad pre-existing project-wide security/performance findings; no new SECURITY DEFINER/RLS exposure specific to the Value Engine was identified in the 2026-09-09 advisor run.
 
 ## Non-negotiable truth rule
 Chat memory is not a deployment database. A statement such as "we already connected/deployed/built this" must be checked against the relevant real system whenever the answer or action depends on it.
