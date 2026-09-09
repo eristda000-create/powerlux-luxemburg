@@ -108,9 +108,15 @@
 
 `DONE` Canonical PC runner is `scripts/central_workshop_bridge.ps1`. It uses a publishable key + normal owner login and never requires a service-role key on the PC. v1 supports `bridge_self_test`, `ollama_prompt`, `git_status` and `git_diff`; arbitrary remote PowerShell is deliberately not enabled.
 
-`UNVERIFIED` The actual local PC is not yet connected. The bridge channel remains `planned` with sentinel address `UNVERIFIED_LOCAL_ENDPOINT`, `runtime_verified=false`, and no live node heartbeat/self-test. A pre-runtime claim is correctly rejected as `runtime_not_verified_or_stale`.
+`DONE / VERIFIED` The first physical Windows PC runtime is now connected as node `DESKTOP-FP4OP26-User`. Live backend evidence on 2026-09-09 shows channel status `active`, `runtime_verified=true`, `bridge_heartbeat_verified=true`, PowerShell `7.6.6`, Git `2.55.0.windows.3`, Ollama `ok`, and local model `qwen3:4b-instruct` detected. The Windows DPAPI session cache is present; Obsidian remains `not_configured`.
 
-`RULE` Do not report PowerShell execution, local Ollama, Obsidian, PC connectivity or automatic Work→new-chat handoff as active until the owning runtime supplies live evidence. Read `merg_os/CENTRAL_WORKSHOP_BRIDGE.md` before any Workshop work.
+`DONE / VERIFIED` End-to-end execution was proven with work item `7c148df1-b72a-47df-8ca7-607ff9cc49a8` (`CENTRAL Workshop end-to-end git status probe`). The node claimed the approved `AUTO_SAFE` task, executed `git_status` against `C:\Users\User\powerlux-luxemburg`, returned `## main...origin/main`, and the backend recorded `status=completed` with `verified=true`.
+
+`OPEN` Windows autostart is not yet verified. Run `scripts/install-central-workshop-autostart.ps1`, then confirm a fresh heartbeat after a new Windows sign-in before calling autostart complete.
+
+`OPEN` Obsidian is not yet attached. Configure the real local vault path through `OBSIDIAN_VAULT` and require a subsequent Workshop self-test with `obsidian=ok` before calling local memory connected.
+
+`RULE` Do not report automatic Work→new-chat handoff as active; no supported Plus-plan API for opening a new ChatGPT Work conversation in the UI has been verified. Read `merg_os/CENTRAL_WORKSHOP_BRIDGE.md` before any Workshop work.
 
 ## Non-negotiable truth rule
 Chat memory is not a deployment database. A statement such as "we already connected/deployed/built this" must be checked against the relevant real system whenever the answer or action depends on it.
