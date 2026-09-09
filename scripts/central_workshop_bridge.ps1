@@ -16,8 +16,9 @@ $PublishableKey = Get-EnvRequired 'CENTRAL_SUPABASE_PUBLISHABLE_KEY'
 $OwnerEmail = [Environment]::GetEnvironmentVariable('CENTRAL_SUPABASE_EMAIL')
 if ([string]::IsNullOrWhiteSpace($OwnerEmail)) { $OwnerEmail = Read-Host 'CENTRAL owner email' }
 
+$HostName = [System.Net.Dns]::GetHostName()
 $NodeId = [Environment]::GetEnvironmentVariable('CENTRAL_WORKSHOP_NODE_ID')
-if ([string]::IsNullOrWhiteSpace($NodeId)) { $NodeId = "$env:COMPUTERNAME-$env:USERNAME" }
+if ([string]::IsNullOrWhiteSpace($NodeId)) { $NodeId = "$HostName-$env:USERNAME" }
 
 $OllamaUrl = [Environment]::GetEnvironmentVariable('OLLAMA_URL')
 if ([string]::IsNullOrWhiteSpace($OllamaUrl)) { $OllamaUrl = 'http://127.0.0.1:11434' }
@@ -25,8 +26,8 @@ $OllamaUrl = $OllamaUrl.TrimEnd('/')
 
 $ObsidianVault = [Environment]::GetEnvironmentVariable('OBSIDIAN_VAULT')
 $WorkDir = [Environment]::GetEnvironmentVariable('CENTRAL_WORKDIR')
-$DefaultModel = [Environment]::GetEnvironmentVariable('CENTRAL_OLLAMA_MODEL')
-if ([string]::IsNullOrWhiteSpace($DefaultModel)) { $DefaultModel = 'llama3.2' }
+$ConfiguredModel = [Environment]::GetEnvironmentVariable('CENTRAL_OLLAMA_MODEL')
+$script:DetectedOllamaModel = $null
 
 $script:AccessToken = $null
 $script:RefreshToken = $null
@@ -90,11 +91,16 @@ function Invoke-CentralBridge([string]$Action, [hashtable]$Payload) {
 function Get-WorkshopTests {
   $tests = [ordered]@{
     powershell = 'ok'; ollama = 'error'; obsidian = 'not_configured'; git = 'not_checked';
-    node_id = $NodeId; computer_name = $env:COMPUTERNAME; powershell_version = $PSVersionTable.PSVersion.ToString()
+    node_id = $NodeId; computer_name = $HostName; powershell_version = $PSVersionTable.PSVersion.ToString()
   }
   try {
     $tags = Invoke-RestMethod -Method Get -Uri "$OllamaUrl/api/tags" -TimeoutSec 8
-    $tests.ollama = 'ok'; $tests.ollama_models = @($tags.models | ForEach-Object { $_.name })
+    $models = @($tags.models | ForEach-Object { $_.name } | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+    $tests.ollama = 'ok'
+    $tests.ollama_models = $models
+    if ([string]::IsNullOrWhiteSpace($ConfiguredModel) -and $models.Count -gt 0) {
+      $script:DetectedOllamaModel = [string]$models[0]
+    }
   } catch { $tests.ollama_error = $_.Exception.Message }
 
   if (-not [string]::IsNullOrWhiteSpace($ObsidianVault)) {
@@ -110,8 +116,9 @@ function Get-WorkshopTests {
 }
 
 function Send-Heartbeat($Tests) {
+  $platform = if ($IsWindows) { 'windows-powershell' } elseif ($IsLinux) { 'linux-powershell' } elseif ($IsMacOS) { 'macos-powershell' } else { 'powershell' }
   $runtime = @{
-    platform='windows-powershell'; powershell_version=$Tests.powershell_version; ollama_url=$OllamaUrl;
+    platform=$platform; powershell_version=$Tests.powershell_version; ollama_url=$OllamaUrl;
     obsidian_configured=-not [string]::IsNullOrWhiteSpace($ObsidianVault);
     workdir_configured=-not [string]::IsNullOrWhiteSpace($WorkDir);
     bridge_script='scripts/central_workshop_bridge.ps1'
@@ -125,7 +132,9 @@ function Invoke-OllamaPrompt([object]$Payload) {
   $prompt = [string]$Payload.prompt
   if ([string]::IsNullOrWhiteSpace($prompt)) { throw 'ollama_prompt requires payload.prompt' }
   $model = [string]$Payload.model
-  if ([string]::IsNullOrWhiteSpace($model)) { $model = $DefaultModel }
+  if ([string]::IsNullOrWhiteSpace($model)) { $model = $ConfiguredModel }
+  if ([string]::IsNullOrWhiteSpace($model)) { $model = $script:DetectedOllamaModel }
+  if ([string]::IsNullOrWhiteSpace($model)) { throw 'No Ollama model is configured or installed.' }
   $body = @{ model=$model; prompt=$prompt; stream=$false } | ConvertTo-Json -Depth 8 -Compress
   $response = Invoke-RestMethod -Method Post -Uri "$OllamaUrl/api/generate" -ContentType 'application/json' -Body $body -TimeoutSec 300
   return @{ action='ollama_prompt'; model=$model; response=$response.response }
