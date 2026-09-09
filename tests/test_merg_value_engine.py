@@ -1,4 +1,5 @@
 import importlib.util
+import sys
 import unittest
 from pathlib import Path
 
@@ -6,6 +7,7 @@ ROOT = Path(__file__).resolve().parents[1]
 SPEC = importlib.util.spec_from_file_location("merg_value_engine", ROOT / "scripts" / "merg_value_engine.py")
 ENGINE = importlib.util.module_from_spec(SPEC)
 assert SPEC and SPEC.loader
+sys.modules[SPEC.name] = ENGINE
 SPEC.loader.exec_module(ENGINE)
 
 
