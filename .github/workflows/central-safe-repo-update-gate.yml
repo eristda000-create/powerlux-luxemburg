@@ -1,0 +1,41 @@
+name: CENTRAL Safe Repo Update Gate
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/central_safe_repo_update.ps1'
+      - '.github/workflows/central-safe-repo-update-gate.yml'
+  pull_request:
+    paths:
+      - 'scripts/central_safe_repo_update.ps1'
+      - 'scripts/central_workshop_bridge.ps1'
+      - '.github/workflows/central-safe-repo-update-gate.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Parse helper in PowerShell
+        shell: pwsh
+        run: |
+          . ./scripts/central_safe_repo_update.ps1
+          if (-not (Get-Command Invoke-CentralSafeRepoUpdate -ErrorAction Stop)) { throw 'helper missing' }
+
+      - name: Enforce bounded update contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Fq "branch -ne 'main'" scripts/central_safe_repo_update.ps1
+          grep -Fq 'remote get-url origin' scripts/central_safe_repo_update.ps1
+          grep -Fq 'status --porcelain=v1 --untracked-files=all' scripts/central_safe_repo_update.ps1
+          grep -Fq 'fetch --prune origin main' scripts/central_safe_repo_update.ps1
+          grep -Fq 'merge-base --is-ancestor' scripts/central_safe_repo_update.ps1
+          grep -Fq 'merge --ff-only origin/main' scripts/central_safe_repo_update.ps1
+          ! grep -Eq 'git .*reset|git .*rebase|git .*push|git .*checkout|git .*switch|--force' scripts/central_safe_repo_update.ps1
