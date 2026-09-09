@@ -81,38 +81,35 @@ Canonical bridge runner:
 
 `scripts/central_workshop_bridge.ps1`
 
-Required environment variables:
+One-command bootstrap:
 
-- `CENTRAL_SUPABASE_URL`
-- `CENTRAL_SUPABASE_PUBLISHABLE_KEY`
+`scripts/start-central-workshop.ps1`
 
-Authentication:
+The bootstrap contains only the verified Supabase project URL and public publishable key, automatically uses the checked-out repository as `CENTRAL_WORKDIR`, checks whether local Ollama answers, starts `ollama serve` when the executable exists but the service is not responding, and then launches the canonical runner. It contains no user password, service-role key or other backend secret.
 
-- `CENTRAL_SUPABASE_EMAIL` may be supplied, otherwise the script asks for the owner email;
-- `CENTRAL_SUPABASE_PASSWORD` may be supplied, otherwise the script asks securely at runtime;
-- the password is not written to the repository;
-- the runner uses the returned access/refresh token in memory;
-- the runner calls the Edge Function, not the internal RPCs directly.
+Preferred start from the repository root:
+
+```powershell
+pwsh -File .\scripts\start-central-workshop.ps1
+```
+
+One-shot handshake/test:
+
+```powershell
+pwsh -File .\scripts\start-central-workshop.ps1 -Once
+```
+
+The runner then asks for the owner email/password unless those are supplied locally through `CENTRAL_SUPABASE_EMAIL` / `CENTRAL_SUPABASE_PASSWORD`.
 
 Optional/local configuration:
 
 - `CENTRAL_WORKSHOP_NODE_ID`
 - `OLLAMA_URL` (defaults to `http://127.0.0.1:11434`)
-- `CENTRAL_OLLAMA_MODEL` (defaults to `llama3.2`)
+- `CENTRAL_OLLAMA_MODEL` (optional; if omitted, the runner uses only a model actually reported by the local Ollama `/api/tags` endpoint)
 - `OBSIDIAN_VAULT`
 - `CENTRAL_WORKDIR`
 
-One-shot verification:
-
-```powershell
-pwsh -File .\scripts\central_workshop_bridge.ps1 -Once
-```
-
-Continuous bridge:
-
-```powershell
-pwsh -File .\scripts\central_workshop_bridge.ps1
-```
+The runner does not assume that `llama3.2` or any other named model is installed. If no configured or detected model exists, an `ollama_prompt` task fails explicitly instead of inventing a model.
 
 The PC-side run itself is **not verified by this repository commit**. It becomes verified only when the production bridge metadata receives a real authenticated heartbeat and successful self-test from that machine.
 
