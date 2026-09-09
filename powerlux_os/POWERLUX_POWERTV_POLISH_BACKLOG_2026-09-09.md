@@ -66,6 +66,79 @@ Acceptance requirements for recovered source:
 4. **Opportunity CTA:** athlete looking for sponsor / venue / coach / event or partner looking for activation.
 5. **Proof score:** distinguish official result, self-submitted claim, editorial story and partner claim.
 
+## 2026 research-backed execution delta — added 2026-09-10
+
+These are strategy inputs from current external research, not PowerLux performance claims.
+
+### R1 — Build for the core community first, then make it shareable
+A July 2026 peer-reviewed niche-sport streaming study found the observed audience was strongly sport-embedded and relationally driven rather than a generic entertainment audience.
+
+**PowerLux implication:**
+- first-use experience should immediately connect fans to athletes, clubs, events and familiar sport context;
+- do not optimize early PowerTV around anonymous catalog volume alone;
+- every event/athlete object should be easy to share outside the platform so the core community becomes distribution.
+
+**Smallest test:** one verified event page + athlete/match share assets; measure external shares → event/profile visits.
+
+**Stop condition:** if share-driven traffic and athlete/community participation remain negligible after two real event/content cycles, do not keep expanding share-card variants.
+
+### R2 — Highlights are a first-class product, not leftover promotion
+Current 2026 sports-media evidence consistently points to highlights, clips and on-demand content as major consumption surfaces beyond full live viewing.
+
+**PowerLux/PowerTV implication:**
+- design each event as a content tree: event → matchup → decisive moment → result → athlete story → full/replay asset where rights allow;
+- clip metadata must preserve the link back to event and athlete identity;
+- PowerTV acceptance must treat `HIGHLIGHTS` as a primary navigation/content class.
+
+**Smallest test:** for one event with cleared rights, compare clip → athlete/event clickthrough against generic event promotion.
+
+**Stop condition:** do not scale clip production volume if capture/edit cost exceeds measurable reach, conversion or sponsor value.
+
+### R3 — Direct fan relationship is more valuable than passive reach alone
+Current sports strategy research emphasizes direct fan relationships, owned identity and measurable downstream actions rather than relying only on third-party reach.
+
+**PowerLux implication:**
+- event attendance/registration, athlete follows/profile visits, sponsor inquiries and opt-in leads are higher-value signals than raw impressions alone;
+- social should feed PowerLux/PowerTV identity surfaces instead of becoming the only destination;
+- account requirements should be introduced only where they add follow/library/personalization value.
+
+**Smallest test:** tagged CTA from matchup/social asset → event/profile → opt-in/lead; compare conversion by source.
+
+### R4 — Sponsor product must be measurable and non-disruptive
+2026 live-sports advertising practice is shifting toward integrated sponsor touchpoints and measurable downstream action rather than only interruption-based ad inventory.
+
+**PowerLux implication:**
+- sell defined assets with fulfillment evidence: matchup sponsor, table/backdrop, athlete story, result/highlight asset, partner CTA;
+- attach each paid package to a measurement plan before sale;
+- do not place sponsor elements over decisive competition action if it harms the viewing product.
+
+**Smallest test:** one sponsor activation with unique CTA/UTM or lead reference plus a post-event deliverable report.
+
+**Stop condition:** do not renew an asset type that cannot be fulfilled reliably or measured at a useful level.
+
+### R5 — Separate live-screen and mobile clip jobs
+Live/long-form sports and on-demand highlights have different viewing contexts; product design should not assume one layout/content rhythm serves both equally well.
+
+**PowerTV acceptance implication after source recovery:**
+- live/replay surface optimized for stable viewing and event context;
+- mobile/vertical clip surface optimized for fast discovery, share and next action;
+- both resolve to the same canonical event/athlete graph.
+
+This is an experiment/design requirement, not a claim about current PowerTV device analytics.
+
+## Execution gates for every new feature
+
+No new PowerLux/PowerTV feature enters implementation without all six fields:
+
+1. **User problem** — what concrete friction/value gap it solves.
+2. **Evidence** — why this problem is real now.
+3. **Smallest test** — lowest-risk way to test value.
+4. **Primary KPI** — one metric that can change the decision.
+5. **Dependency** — source, rights, backend, data or operational prerequisite.
+6. **Stop rule** — what result means we should not scale it.
+
+If these cannot be stated, keep the idea in research rather than the execution backlog.
+
 ## Design direction
 
 - modern, clean, performance-first;
@@ -100,6 +173,21 @@ PowerTV after source recovery:
 - clip-to-full-event clickthrough;
 - logged-out browse → account conversion;
 - sponsor deliverables based on actual impressions.
+
+Cross-platform execution metrics:
+- social/share asset → PowerLux event/profile clickthrough;
+- event/profile → attendance/opt-in/lead conversion;
+- clip → full/replay/event clickthrough where rights permit;
+- cost/time per published content unit;
+- sponsor asset fulfillment rate;
+- sponsor CTA/lead outcomes where contractually appropriate.
+
+## Research references for the 2026-09-10 delta
+
+- Fujak, Doyle & Wymer (2026), *Streaming for Whom? Exploring the Audience Composition and Perceptions of Niche Sport Streams*, Communication & Sport / SAGE.
+- Nielsen (2026), *The multi-platform evolution of live sports* and *Tops of Sports 2026*.
+- BCG (2026), *Beyond Media Rights: A Whole New Ballgame for Sports*.
+- Amazon Ads (2026), *Live sports advertising trends in 2026* — used only as current industry practice input, not independent PowerLux evidence.
 
 ## Release guard
 
