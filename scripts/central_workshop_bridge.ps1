@@ -7,23 +7,17 @@ $ErrorActionPreference = 'Stop'
 
 function Get-EnvRequired([string]$Name) {
   $value = [Environment]::GetEnvironmentVariable($Name)
-  if ([string]::IsNullOrWhiteSpace($value)) {
-    throw "Missing required environment variable: $Name"
-  }
+  if ([string]::IsNullOrWhiteSpace($value)) { throw "Missing required environment variable: $Name" }
   return $value
 }
 
 $SupabaseUrl = (Get-EnvRequired 'CENTRAL_SUPABASE_URL').TrimEnd('/')
 $PublishableKey = Get-EnvRequired 'CENTRAL_SUPABASE_PUBLISHABLE_KEY'
 $OwnerEmail = [Environment]::GetEnvironmentVariable('CENTRAL_SUPABASE_EMAIL')
-if ([string]::IsNullOrWhiteSpace($OwnerEmail)) {
-  $OwnerEmail = Read-Host 'CENTRAL owner email'
-}
+if ([string]::IsNullOrWhiteSpace($OwnerEmail)) { $OwnerEmail = Read-Host 'CENTRAL owner email' }
 
 $NodeId = [Environment]::GetEnvironmentVariable('CENTRAL_WORKSHOP_NODE_ID')
-if ([string]::IsNullOrWhiteSpace($NodeId)) {
-  $NodeId = "$env:COMPUTERNAME-$env:USERNAME"
-}
+if ([string]::IsNullOrWhiteSpace($NodeId)) { $NodeId = "$env:COMPUTERNAME-$env:USERNAME" }
 
 $OllamaUrl = [Environment]::GetEnvironmentVariable('OLLAMA_URL')
 if ([string]::IsNullOrWhiteSpace($OllamaUrl)) { $OllamaUrl = 'http://127.0.0.1:11434' }
@@ -40,18 +34,14 @@ $script:TokenExpiresAt = [DateTimeOffset]::MinValue
 
 function Convert-SecureStringToPlain([Security.SecureString]$Secure) {
   $ptr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($Secure)
-  try {
-    return [Runtime.InteropServices.Marshal]::PtrToStringBSTR($ptr)
-  } finally {
-    [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($ptr)
-  }
+  try { return [Runtime.InteropServices.Marshal]::PtrToStringBSTR($ptr) }
+  finally { [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($ptr) }
 }
 
 function Set-AuthTokens($Response) {
   $script:AccessToken = [string]$Response.access_token
   $script:RefreshToken = [string]$Response.refresh_token
-  $expiresIn = 3600
-  if ($null -ne $Response.expires_in) { $expiresIn = [int]$Response.expires_in }
+  $expiresIn = if ($null -ne $Response.expires_in) { [int]$Response.expires_in } else { 3600 }
   $script:TokenExpiresAt = [DateTimeOffset]::UtcNow.AddSeconds($expiresIn)
 }
 
@@ -61,50 +51,37 @@ function Login-CentralOwner {
     $secure = Read-Host 'CENTRAL owner password' -AsSecureString
     $password = Convert-SecureStringToPlain $secure
   }
-
   try {
     $body = @{ email = $OwnerEmail; password = $password } | ConvertTo-Json -Compress
     $response = Invoke-RestMethod -Method Post -Uri "$SupabaseUrl/auth/v1/token?grant_type=password" -Headers @{ apikey = $PublishableKey } -ContentType 'application/json' -Body $body
     Set-AuthTokens $response
-  } finally {
-    $password = $null
-  }
+  } finally { $password = $null }
 }
 
 function Refresh-CentralOwner {
-  if ([string]::IsNullOrWhiteSpace($script:RefreshToken)) {
-    Login-CentralOwner
-    return
-  }
-
+  if ([string]::IsNullOrWhiteSpace($script:RefreshToken)) { Login-CentralOwner; return }
   $body = @{ refresh_token = $script:RefreshToken } | ConvertTo-Json -Compress
   $response = Invoke-RestMethod -Method Post -Uri "$SupabaseUrl/auth/v1/token?grant_type=refresh_token" -Headers @{ apikey = $PublishableKey } -ContentType 'application/json' -Body $body
   Set-AuthTokens $response
 }
 
 function Get-CentralHeaders {
-  if ([string]::IsNullOrWhiteSpace($script:AccessToken)) {
-    Login-CentralOwner
-  } elseif ([DateTimeOffset]::UtcNow -ge $script:TokenExpiresAt.AddMinutes(-2)) {
-    Refresh-CentralOwner
-  }
-
-  return @{
-    apikey = $PublishableKey
-    Authorization = "Bearer $script:AccessToken"
-  }
+  if ([string]::IsNullOrWhiteSpace($script:AccessToken)) { Login-CentralOwner }
+  elseif ([DateTimeOffset]::UtcNow -ge $script:TokenExpiresAt.AddMinutes(-2)) { Refresh-CentralOwner }
+  return @{ apikey = $PublishableKey; Authorization = "Bearer $script:AccessToken" }
 }
 
-function Invoke-CentralRpc([string]$FunctionName, [hashtable]$Body) {
-  $json = $Body | ConvertTo-Json -Depth 20 -Compress
+function Invoke-CentralBridge([string]$Action, [hashtable]$Payload) {
+  $body = @{ action = $Action; payload = $Payload } | ConvertTo-Json -Depth 20 -Compress
   $headers = Get-CentralHeaders
   try {
-    return Invoke-RestMethod -Method Post -Uri "$SupabaseUrl/rest/v1/rpc/$FunctionName" -Headers $headers -ContentType 'application/json' -Body $json
+    return Invoke-RestMethod -Method Post -Uri "$SupabaseUrl/functions/v1/central-workshop-bridge" -Headers $headers -ContentType 'application/json' -Body $body
   } catch {
-    if ($_.Exception.Response.StatusCode.value__ -eq 401) {
+    $status = $null
+    try { $status = $_.Exception.Response.StatusCode.value__ } catch {}
+    if ($status -eq 401) {
       Refresh-CentralOwner
-      $headers = Get-CentralHeaders
-      return Invoke-RestMethod -Method Post -Uri "$SupabaseUrl/rest/v1/rpc/$FunctionName" -Headers $headers -ContentType 'application/json' -Body $json
+      return Invoke-RestMethod -Method Post -Uri "$SupabaseUrl/functions/v1/central-workshop-bridge" -Headers (Get-CentralHeaders) -ContentType 'application/json' -Body $body
     }
     throw
   }
@@ -112,85 +89,46 @@ function Invoke-CentralRpc([string]$FunctionName, [hashtable]$Body) {
 
 function Get-WorkshopTests {
   $tests = [ordered]@{
-    powershell = 'ok'
-    ollama = 'error'
-    obsidian = 'not_configured'
-    git = 'not_checked'
-    node_id = $NodeId
-    computer_name = $env:COMPUTERNAME
-    powershell_version = $PSVersionTable.PSVersion.ToString()
+    powershell = 'ok'; ollama = 'error'; obsidian = 'not_configured'; git = 'not_checked';
+    node_id = $NodeId; computer_name = $env:COMPUTERNAME; powershell_version = $PSVersionTable.PSVersion.ToString()
   }
-
   try {
     $tags = Invoke-RestMethod -Method Get -Uri "$OllamaUrl/api/tags" -TimeoutSec 8
-    $tests.ollama = 'ok'
-    $tests.ollama_models = @($tags.models | ForEach-Object { $_.name })
-  } catch {
-    $tests.ollama_error = $_.Exception.Message
-  }
+    $tests.ollama = 'ok'; $tests.ollama_models = @($tags.models | ForEach-Object { $_.name })
+  } catch { $tests.ollama_error = $_.Exception.Message }
 
   if (-not [string]::IsNullOrWhiteSpace($ObsidianVault)) {
-    if (Test-Path -LiteralPath $ObsidianVault -PathType Container) {
-      $tests.obsidian = 'ok'
-      $tests.obsidian_vault = $ObsidianVault
-    } else {
-      $tests.obsidian = 'error'
-      $tests.obsidian_error = 'Configured vault path does not exist.'
-    }
+    if (Test-Path -LiteralPath $ObsidianVault -PathType Container) { $tests.obsidian = 'ok'; $tests.obsidian_vault = $ObsidianVault }
+    else { $tests.obsidian = 'error'; $tests.obsidian_error = 'Configured vault path does not exist.' }
   }
 
   try {
     $gitVersion = (& git --version 2>&1 | Out-String).Trim()
-    if ($LASTEXITCODE -eq 0) {
-      $tests.git = 'ok'
-      $tests.git_version = $gitVersion
-    } else {
-      $tests.git = 'error'
-    }
-  } catch {
-    $tests.git = 'error'
-    $tests.git_error = $_.Exception.Message
-  }
-
+    if ($LASTEXITCODE -eq 0) { $tests.git = 'ok'; $tests.git_version = $gitVersion } else { $tests.git = 'error' }
+  } catch { $tests.git = 'error'; $tests.git_error = $_.Exception.Message }
   return $tests
 }
 
 function Send-Heartbeat($Tests) {
   $runtime = @{
-    platform = 'windows-powershell'
-    powershell_version = $Tests.powershell_version
-    ollama_url = $OllamaUrl
-    obsidian_configured = -not [string]::IsNullOrWhiteSpace($ObsidianVault)
-    workdir_configured = -not [string]::IsNullOrWhiteSpace($WorkDir)
-    bridge_script = 'scripts/central_workshop_bridge.ps1'
+    platform='windows-powershell'; powershell_version=$Tests.powershell_version; ollama_url=$OllamaUrl;
+    obsidian_configured=-not [string]::IsNullOrWhiteSpace($ObsidianVault);
+    workdir_configured=-not [string]::IsNullOrWhiteSpace($WorkDir);
+    bridge_script='scripts/central_workshop_bridge.ps1'
   }
-  return Invoke-CentralRpc 'merg_workshop_heartbeat' @{
-    p_node_id = $NodeId
-    p_runtime = $runtime
-  }
+  return Invoke-CentralBridge 'heartbeat' @{ node_id=$NodeId; runtime=$runtime }
 }
 
-function Send-SelfTest($Tests) {
-  return Invoke-CentralRpc 'merg_workshop_self_test' @{
-    p_node_id = $NodeId
-    p_tests = $Tests
-  }
-}
+function Send-SelfTest($Tests) { return Invoke-CentralBridge 'self_test' @{ node_id=$NodeId; tests=$Tests } }
 
 function Invoke-OllamaPrompt([object]$Payload) {
   $prompt = [string]$Payload.prompt
   if ([string]::IsNullOrWhiteSpace($prompt)) { throw 'ollama_prompt requires payload.prompt' }
   $model = [string]$Payload.model
   if ([string]::IsNullOrWhiteSpace($model)) { $model = $DefaultModel }
-
-  $body = @{
-    model = $model
-    prompt = $prompt
-    stream = $false
-  } | ConvertTo-Json -Depth 8 -Compress
-
+  $body = @{ model=$model; prompt=$prompt; stream=$false } | ConvertTo-Json -Depth 8 -Compress
   $response = Invoke-RestMethod -Method Post -Uri "$OllamaUrl/api/generate" -ContentType 'application/json' -Body $body -TimeoutSec 300
-  return @{ action = 'ollama_prompt'; model = $model; response = $response.response }
+  return @{ action='ollama_prompt'; model=$model; response=$response.response }
 }
 
 function Invoke-GitStatus {
@@ -198,7 +136,7 @@ function Invoke-GitStatus {
   if (-not (Test-Path -LiteralPath $WorkDir -PathType Container)) { throw 'CENTRAL_WORKDIR does not exist' }
   $output = (& git -C $WorkDir status --short --branch 2>&1 | Out-String).Trim()
   if ($LASTEXITCODE -ne 0) { throw "git status failed: $output" }
-  return @{ action = 'git_status'; workdir = $WorkDir; output = $output }
+  return @{ action='git_status'; workdir=$WorkDir; output=$output }
 }
 
 function Invoke-GitDiff {
@@ -206,25 +144,17 @@ function Invoke-GitDiff {
   if (-not (Test-Path -LiteralPath $WorkDir -PathType Container)) { throw 'CENTRAL_WORKDIR does not exist' }
   $output = (& git -C $WorkDir diff --stat 2>&1 | Out-String).Trim()
   if ($LASTEXITCODE -ne 0) { throw "git diff failed: $output" }
-  return @{ action = 'git_diff'; workdir = $WorkDir; output = $output }
+  return @{ action='git_diff'; workdir=$WorkDir; output=$output }
 }
 
 function Invoke-WorkshopTask([object]$Task, $Tests) {
   $action = [string]$Task.payload.action
   switch ($action) {
-    'bridge_self_test' { return @{ verified = $true; result = @{ action = $action; tests = $Tests } } }
-    'ollama_prompt' { return @{ verified = $true; result = (Invoke-OllamaPrompt $Task.payload) } }
-    'git_status' { return @{ verified = $true; result = (Invoke-GitStatus) } }
-    'git_diff' { return @{ verified = $true; result = (Invoke-GitDiff) } }
-    default {
-      return @{
-        verified = $false
-        result = @{
-          action = $action
-          error = 'Unsupported action. CENTRAL Workshop v1 does not execute arbitrary remote PowerShell commands.'
-        }
-      }
-    }
+    'bridge_self_test' { return @{ verified=$true; result=@{ action=$action; tests=$Tests } } }
+    'ollama_prompt' { return @{ verified=$true; result=(Invoke-OllamaPrompt $Task.payload) } }
+    'git_status' { return @{ verified=$true; result=(Invoke-GitStatus) } }
+    'git_diff' { return @{ verified=$true; result=(Invoke-GitDiff) } }
+    default { return @{ verified=$false; result=@{ action=$action; error='Unsupported action. CENTRAL Workshop v1 does not execute arbitrary remote PowerShell commands.' } } }
   }
 }
 
@@ -237,37 +167,29 @@ while ($true) {
     $null = Send-Heartbeat $tests
     $selfTest = Send-SelfTest $tests
 
-    if ($selfTest.runtime_verified -eq $true) {
-      $claim = Invoke-CentralRpc 'merg_workshop_claim_next' @{ p_node_id = $NodeId }
-      if ($null -ne $claim.task) {
-        Write-Host "Claimed work item $($claim.task.id): $($claim.task.title)"
+    if ($selfTest.data.runtime_verified -eq $true) {
+      $claim = Invoke-CentralBridge 'claim_next' @{ node_id=$NodeId }
+      if ($null -ne $claim.data.task) {
+        $task = $claim.data.task
+        Write-Host "Claimed work item $($task.id): $($task.title)"
         try {
-          $execution = Invoke-WorkshopTask $claim.task $tests
-          $completion = Invoke-CentralRpc 'merg_workshop_complete' @{
-            p_work_item_id = $claim.task.id
-            p_node_id = $NodeId
-            p_result = $execution.result
-            p_verified = [bool]$execution.verified
+          $execution = Invoke-WorkshopTask $task $tests
+          $completion = Invoke-CentralBridge 'complete' @{
+            node_id=$NodeId; work_item_id=$task.id; result=$execution.result; verified=[bool]$execution.verified
           }
-          Write-Host "Completed: status=$($completion.status), verified=$($completion.verified)"
+          Write-Host "Completed: status=$($completion.data.status), verified=$($completion.data.verified)"
         } catch {
-          $errorResult = @{ action = [string]$claim.task.payload.action; error = $_.Exception.Message }
-          $null = Invoke-CentralRpc 'merg_workshop_complete' @{
-            p_work_item_id = $claim.task.id
-            p_node_id = $NodeId
-            p_result = $errorResult
-            p_verified = $false
+          $null = Invoke-CentralBridge 'complete' @{
+            node_id=$NodeId; work_item_id=$task.id; result=@{ action=[string]$task.payload.action; error=$_.Exception.Message }; verified=$false
           }
           Write-Warning $_.Exception.Message
         }
       }
     } else {
-      Write-Warning 'Runtime is not verified. PowerShell and Ollama must both pass the self-test before jobs can be claimed.'
+      Write-Warning 'Runtime is not verified. PowerShell and Ollama must both pass before jobs can be claimed.'
     }
-  } catch {
-    Write-Warning "Bridge cycle failed: $($_.Exception.Message)"
-  }
+  } catch { Write-Warning "Bridge cycle failed: $($_.Exception.Message)" }
 
   if ($Once) { break }
-  Start-Sleep -Seconds ([Math]::Max(10, $PollSeconds))
+  Start-Sleep -Seconds ([Math]::Max(10,$PollSeconds))
 }
