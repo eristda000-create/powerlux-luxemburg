@@ -9,6 +9,7 @@ Before making a substantive claim or write, read in this order:
 3. `merg_os/PRODUCTION_GATES.md`
 4. `merg_os/TOOL_ROUTER.md`
 5. Project-specific state. For PowerLux: `powerlux_os/CURRENT_STATE.md`, `powerlux_os/ROUTER.md`, `powerlux_os/DECISION_LOG.md`.
+6. Before any Git write: `powerlux_os/GIT_OPERATING_POLICY.md`.
 
 If any required file is missing or stale, treat the affected fact as `UNVERIFIED` rather than guessing.
 
@@ -45,6 +46,17 @@ Identify and verify:
 
 Prefer editing the existing implementation over introducing parallel replacements.
 
+## Git discipline
+- Canonical repository is `eristda000-create/powerlux-luxemburg`; canonical integration branch is `main`.
+- Normal work must start from current `origin/main` on a short-lived branch and go through a PR. Do not routinely write directly to `main`.
+- One work item owns one branch. Never let ChatGPT, Codex, Qwen/Ollama or another session concurrently write the same branch without an explicit handoff.
+- Before continuing a feature branch, fetch `origin/main` and verify current `main` is contained in the branch. If not, synchronize first; do not continue piling work onto a stale branch.
+- Never solve drift with automatic `reset --hard`, force push, destructive cleanup or unreviewed rebases of shared branches.
+- Local PC updates of `main` are fast-forward only and require the expected remote plus a clean working tree.
+- Closed/abandoned rebuild, recovery, replica and mockup branches are non-canonical. Do not reopen or use them as production source without a new explicit owner decision.
+- Run `scripts/git_preflight.ps1 -RequireMainCurrent` before substantial branch work when operating locally.
+- Full policy: `powerlux_os/GIT_OPERATING_POLICY.md`.
+
 ## Before every deployment
 Verify:
 - exact repository + branch + commit being deployed;
@@ -77,7 +89,10 @@ Every substantial handoff must state:
 - project;
 - repository;
 - branch;
-- latest commit;
+- base/main commit;
+- latest branch commit;
+- work item / owner;
+- files changed;
 - deployment/environment;
 - tests/checks completed;
 - open blockers;
