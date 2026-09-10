@@ -1,0 +1,79 @@
+name: CENTRAL Assistant Request Gate
+
+on:
+  pull_request:
+    paths:
+      - 'scripts/central_local_agent_autonomy.ps1'
+      - 'supabase/functions/central-workshop-bridge/**'
+      - 'supabase/migrations/*central_assistant_request*'
+      - '.github/workflows/central-assistant-request-gate.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  assistant-request-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Parse local autonomy PowerShell
+        shell: pwsh
+        run: |
+          $errors = $null
+          [void][System.Management.Automation.Language.Parser]::ParseFile(
+            (Resolve-Path './scripts/central_local_agent_autonomy.ps1'),
+            [ref]$null,
+            [ref]$errors
+          )
+          if ($errors.Count -gt 0) {
+            $errors | ForEach-Object { Write-Error $_.Message }
+            exit 1
+          }
+          Write-Host 'central_local_agent_autonomy.ps1 syntax PASS'
+
+      - name: Verify local authority boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          F='scripts/central_local_agent_autonomy.ps1'
+          grep -q "'assistant_request'" "$F"
+          grep -q "queued_for_chatgpt_review" "$F"
+          grep -q "local Safe-Action Planner" "$F"
+          grep -q "never an authorization" "$F"
+          grep -q "Never include passwords, tokens, cookies, secrets" "$F"
+          grep -q "never ask for a rebuild, replica, mockup or replacement frontend" "$F"
+          ! grep -Eq 'Invoke-Expression|iex[[:space:]]|Start-Process[[:space:]].*(cmd|powershell|pwsh)' "$F"
+
+      - name: Verify bridge contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          F='supabase/functions/central-workshop-bridge/index.ts'
+          grep -q "assistant_request" "$F"
+          grep -q "merg_workshop_submit_assistant_request" "$F"
+          grep -q "withSupabase({ auth: 'user' }" "$F"
+          grep -q "owner_authorization_required" "$F"
+          grep -q "X-Central-Bridge': 'v2'" "$F"
+
+      - name: Verify migration authority boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          F='supabase/migrations/20260910163000_central_assistant_request_loop_v1.sql'
+          grep -q "merg_workshop_submit_assistant_request" "$F"
+          grep -q "runtime_not_verified_or_stale" "$F"
+          grep -q "execution_surface','chatgpt_controller'" "$F"
+          grep -q "local_model_has_write_authority',false" "$F"
+          grep -q "revoke all .* from public, anon, authenticated" "$F"
+          grep -q "grant execute .* to service_role" "$F"
+          grep -q "blocked_target_path" "$F"
+
+      - name: Summary
+        run: |
+          echo 'CENTRAL assistant-request contract PASS'
+          echo 'Local model can request controller work but receives no cloud write authority.'
