@@ -1,0 +1,89 @@
+name: Git Hygiene Gate
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review, edited]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  hygiene:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout PR head
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify base and branch naming
+        if: github.event_name == 'pull_request'
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "${{ github.base_ref }}" = "main" || { echo "PR base must be main"; exit 1; }
+          BRANCH="${{ github.head_ref }}"
+          case "$BRANCH" in
+            feature/*|fix/*|chore/*|docs/*|central/*|hotfix/*) ;;
+            *) echo "Use a short-lived branch prefix: feature/, fix/, chore/, docs/, central/, hotfix/"; exit 1 ;;
+          esac
+          if echo "$BRANCH" | grep -Eiq '(^|[-_/])(rebuild|replica|mockup)([-_/]|$)'; then
+            echo "Rebuild/replica/mockup branches are blocked for existing PowerLux/PowerTV products."
+            exit 1
+          fi
+
+      - name: Require current main in PR history
+        if: github.event_name == 'pull_request'
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main --prune
+          git merge-base --is-ancestor origin/main HEAD || {
+            echo "Branch is stale or diverged: current origin/main is not contained in PR HEAD."
+            echo "Synchronize with main before continuing or merging."
+            exit 1
+          }
+
+      - name: Detect unfinished Git state
+        shell: bash
+        run: |
+          set -euo pipefail
+          test ! -f .git/MERGE_HEAD
+          test ! -f .git/CHERRY_PICK_HEAD
+          test ! -f .git/REVERT_HEAD
+          test ! -d .git/rebase-merge
+          test ! -d .git/rebase-apply
+
+      - name: Validate PowerShell Git preflight syntax
+        shell: pwsh
+        run: |
+          $errors = $null
+          [void][System.Management.Automation.Language.Parser]::ParseFile(
+            (Resolve-Path './scripts/git_preflight.ps1'),
+            [ref]$null,
+            [ref]$errors
+          )
+          if ($errors.Count -gt 0) {
+            $errors | ForEach-Object { Write-Error $_.Message }
+            exit 1
+          }
+          Write-Host 'git_preflight.ps1 syntax PASS'
+
+      - name: Guard against known parallel-product patterns
+        if: github.event_name == 'pull_request'
+        shell: bash
+        run: |
+          set -euo pipefail
+          TITLE='${{ github.event.pull_request.title }}'
+          if echo "$TITLE" | grep -Eiq '\b(rebuild|replica|mockup)\b'; then
+            echo "PR title indicates a rebuild/replica/mockup of an existing product. Owner must explicitly change direction before this can proceed."
+            exit 1
+          fi
+
+      - name: Summary
+        shell: bash
+        run: |
+          echo "Git hygiene PASS"
+          echo "Repository: $GITHUB_REPOSITORY"
+          echo "Head: $(git rev-parse HEAD)"
