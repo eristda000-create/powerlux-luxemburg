@@ -1,7 +1,7 @@
 import { withSupabase } from 'npm:@supabase/server';
 
 type WorkshopRequest = {
-  action?: 'heartbeat' | 'self_test' | 'claim_next' | 'complete';
+  action?: 'heartbeat' | 'self_test' | 'claim_next' | 'complete' | 'assistant_request';
   payload?: Record<string, unknown>;
 };
 
@@ -10,7 +10,7 @@ const json = (body: unknown, status = 200) =>
     status,
     headers: {
       'Cache-Control': 'no-store',
-      'X-Central-Bridge': 'v1',
+      'X-Central-Bridge': 'v2',
     },
   });
 
@@ -80,6 +80,20 @@ export default {
           p_node_id: nodeId,
           p_result: typeof payload.result === 'object' && payload.result !== null ? payload.result : {},
           p_verified: payload.verified === true,
+        };
+        break;
+      }
+      case 'assistant_request': {
+        const parentWorkItemId = typeof payload.parent_work_item_id === 'string' && payload.parent_work_item_id.trim()
+          ? payload.parent_work_item_id.trim()
+          : null;
+        const request = typeof payload.request === 'object' && payload.request !== null ? payload.request : null;
+        if (!request) return json({ ok: false, error: 'assistant_request_payload_required' }, 400);
+        rpcName = 'merg_workshop_submit_assistant_request';
+        rpcArgs = {
+          p_node_id: nodeId,
+          p_parent_work_item_id: parentWorkItemId,
+          p_request: request,
         };
         break;
       }

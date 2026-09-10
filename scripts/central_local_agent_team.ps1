@@ -57,6 +57,71 @@ function Get-CentralPayloadInt {
   return [Math]::Min($Max, [Math]::Max($Min, $value))
 }
 
+function Get-CentralProjectName {
+  param([object]$Payload)
+  $project = ''
+  if ($null -ne $Payload.PSObject.Properties['project']) { $project = ([string]$Payload.project).Trim().ToLowerInvariant() }
+  if ([string]::IsNullOrWhiteSpace($project)) { $project = 'central' }
+  if ($project -notin @('central','powerlux','powertv','merg','cogni')) { $project = 'central' }
+  return $project
+}
+
+function Get-CentralDefaultContextPaths {
+  param([object]$Payload)
+  $project = Get-CentralProjectName -Payload $Payload
+  switch ($project) {
+    'powerlux' {
+      return @(
+        'AGENTS.md',
+        'powerlux_os/CURRENT_STATE.md',
+        'powerlux_os/DECISION_LOG.md',
+        'powerlux_os/GIT_OPERATING_POLICY.md',
+        'merg_os/PROJECT_REGISTRY.md',
+        'merg_os/CONTEXT_BROKER.md'
+      )
+    }
+    'powertv' {
+      return @(
+        'AGENTS.md',
+        'powerlux_os/CURRENT_STATE.md',
+        'powerlux_os/DECISION_LOG.md',
+        'merg_os/PROJECT_REGISTRY.md',
+        'merg_os/CONTEXT_BROKER.md',
+        'merg_os/DEVICE_WORKFLOW.md'
+      )
+    }
+    'merg' {
+      return @(
+        'AGENTS.md',
+        'merg_os/CURRENT_STATE.md',
+        'merg_os/PROJECT_REGISTRY.md',
+        'merg_os/TOOL_ROUTER.md',
+        'merg_os/CONTEXT_BROKER.md',
+        'merg_os/LOCAL_AGENT_TEAM.md'
+      )
+    }
+    'cogni' {
+      return @(
+        'AGENTS.md',
+        'merg_os/PROJECT_REGISTRY.md',
+        'merg_os/DEVICE_WORKFLOW.md',
+        'merg_os/CONTEXT_BROKER.md',
+        'merg_os/LOCAL_AGENT_TEAM.md'
+      )
+    }
+    default {
+      return @(
+        'AGENTS.md',
+        'merg_os/CURRENT_STATE.md',
+        'merg_os/PROJECT_REGISTRY.md',
+        'merg_os/DEVICE_WORKFLOW.md',
+        'merg_os/LOCAL_AGENT_TEAM.md',
+        'powerlux_os/GIT_OPERATING_POLICY.md'
+      )
+    }
+  }
+}
+
 function Invoke-CentralOllamaAgent {
   param(
     [Parameter(Mandatory=$true)][string]$OllamaUrl,
@@ -119,6 +184,8 @@ function Invoke-CentralLocalAgentTeam {
   $objective = [string]$Payload.objective
   if ([string]::IsNullOrWhiteSpace($objective)) { throw 'local_agent_team requires payload.objective.' }
 
+  $project = Get-CentralProjectName -Payload $Payload
+
   $model = [string]$Payload.model
   if ([string]::IsNullOrWhiteSpace($model)) { $model = $ConfiguredModel }
   if ([string]::IsNullOrWhiteSpace($model)) { $model = $DetectedModel }
@@ -128,27 +195,19 @@ function Invoke-CentralLocalAgentTeam {
   $mode = [string]$Payload.mode
   if ([string]::IsNullOrWhiteSpace($mode)) { $mode = 'analysis' }
 
-  $maxChars = Get-CentralPayloadInt -Payload $Payload -Name 'max_context_chars' -Default 8000 -Min 3500 -Max 12000
+  $maxChars = Get-CentralPayloadInt -Payload $Payload -Name 'max_context_chars' -Default 9000 -Min 3500 -Max 12000
   $remaining = $maxChars
   $sections = [System.Collections.Generic.List[string]]::new()
   $sources = [System.Collections.Generic.List[string]]::new()
   $warnings = [System.Collections.Generic.List[string]]::new()
 
-  $defaultRepoPaths = @(
-    'merg_os/CURRENT_STATE.md',
-    'merg_os/PROJECT_REGISTRY.md',
-    'merg_os/DEVICE_WORKFLOW.md',
-    'merg_os/TOOL_ROUTER.md',
-    'merg_os/LOCAL_AGENT_TEAM.md'
-  )
-
   $repoPaths = @()
   if ($null -ne $Payload.PSObject.Properties['context_paths'] -and $null -ne $Payload.context_paths) {
     $repoPaths = @($Payload.context_paths | ForEach-Object { [string]$_ } | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
   }
-  if ($repoPaths.Count -eq 0) { $repoPaths = $defaultRepoPaths }
+  if ($repoPaths.Count -eq 0) { $repoPaths = @(Get-CentralDefaultContextPaths -Payload $Payload) }
 
-  foreach ($relative in ($repoPaths | Select-Object -First 5)) {
+  foreach ($relative in ($repoPaths | Select-Object -First 6)) {
     if ($remaining -le 0) { break }
     try {
       $file = Resolve-CentralSafeTextFile -Root $WorkDir -RelativePath $relative
@@ -163,6 +222,10 @@ function Invoke-CentralLocalAgentTeam {
     } catch {
       $warnings.Add("repo:$relative -> $($_.Exception.Message)")
     }
+  }
+
+  if ($project -eq 'cogni') {
+    $warnings.Add('Cogni source is not inside CENTRAL_WORKDIR. Use assistant_request for connected GitHub/controller verification instead of guessing.')
   }
 
   $obsidianPaths = @()
@@ -225,6 +288,7 @@ function Invoke-CentralLocalAgentTeam {
 
   $analystPrompt = @"
 You are CENTRAL's local Qwen Analyst running through Ollama on the user's PC.
+Project: $project
 Mode: $mode
 Objective: $objective
 
@@ -233,20 +297,23 @@ Rules:
 - Do not claim actions you did not perform.
 - Separate verified observations from inference.
 - Return only the highest-value risks, contradictions and next actions.
+- If the next useful step requires cloud-connected verification, account data, web research, another repository, or writing to the real project, state CONTROLLER_NEEDED and exactly what ChatGPT/controller should verify or produce.
+- For existing PowerLux/PowerTV, never propose a rebuild, replica, mockup or replacement frontend.
 - Maximum 6 short bullets; keep it concise.
 
 LOCAL CONTEXT:
 $context
 "@
 
-  $analyst = Invoke-CentralOllamaAgent -OllamaUrl $OllamaUrl -Model $model -Prompt $analystPrompt -MaxTokens 160 -ContextTokens 3072 -TimeoutSec 120
+  $analyst = Invoke-CentralOllamaAgent -OllamaUrl $OllamaUrl -Model $model -Prompt $analystPrompt -MaxTokens 180 -ContextTokens 3328 -TimeoutSec 120
 
   $guardianContext = if ($context.Length -gt 3500) { $context.Substring(0,3500) } else { $context }
   $guardianPrompt = @"
 You are CENTRAL's local Qwen Guardian.
+Project: $project
 Objective: $objective
 
-Critique the Analyst using the context below. Flag unsupported claims, missing evidence, source conflicts and unsafe/duplicate work.
+Critique the Analyst using the context below. Flag unsupported claims, missing evidence, source conflicts, duplicate/rebuild work and unsafe actions. If controller help is necessary, identify the minimum request.
 Return only four short headings: SOLID, UNVERIFIED, CORRECTIONS, NEXT CHECK. Keep it very concise.
 
 ANALYST:
@@ -256,12 +323,13 @@ CONTEXT:
 $guardianContext
 "@
 
-  $guardian = Invoke-CentralOllamaAgent -OllamaUrl $OllamaUrl -Model $supportModel -Prompt $guardianPrompt -MaxTokens 110 -ContextTokens 2560 -TimeoutSec 90
+  $guardian = Invoke-CentralOllamaAgent -OllamaUrl $OllamaUrl -Model $supportModel -Prompt $guardianPrompt -MaxTokens 120 -ContextTokens 2816 -TimeoutSec 90
   $obsidianAccess = if ([string]::IsNullOrWhiteSpace($ObsidianVault)) { 'not_configured' } else { 'read_only' }
 
   return [ordered]@{
     action = 'local_agent_team'
-    performance_profile = 'dual_model_v3'
+    performance_profile = 'project_context_v4'
+    project = $project
     model = $model
     support_model = $supportModel
     mode = $mode
@@ -276,6 +344,7 @@ $guardianContext
       obsidian = $obsidianAccess
       arbitrary_shell = $false
       credentials = $false
+      controller_requests = $true
     }
     context_sources = @($sources)
     context_chars = $context.Length

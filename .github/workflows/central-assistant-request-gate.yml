@@ -1,0 +1,93 @@
+name: CENTRAL Assistant Request Gate
+
+on:
+  pull_request:
+    paths:
+      - 'scripts/central_local_agent_autonomy.ps1'
+      - 'scripts/central_local_agent_team.ps1'
+      - 'supabase/functions/central-workshop-bridge/**'
+      - 'supabase/migrations/*central_assistant_request*'
+      - '.github/workflows/central-assistant-request-gate.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  assistant-request-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Parse local PowerShell
+        shell: pwsh
+        run: |
+          $files = @(
+            './scripts/central_local_agent_autonomy.ps1',
+            './scripts/central_local_agent_team.ps1'
+          )
+          foreach ($file in $files) {
+            $errors = $null
+            [void][System.Management.Automation.Language.Parser]::ParseFile(
+              (Resolve-Path $file),
+              [ref]$null,
+              [ref]$errors
+            )
+            if ($errors.Count -gt 0) {
+              $errors | ForEach-Object { Write-Error "${file}: $($_.Message)" }
+              exit 1
+            }
+            Write-Host "$file syntax PASS"
+          }
+
+      - name: Verify local authority boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          A='scripts/central_local_agent_autonomy.ps1'
+          T='scripts/central_local_agent_team.ps1'
+          grep -q "'assistant_request'" "$A"
+          grep -q "queued_for_chatgpt_review" "$A"
+          grep -q "local Safe-Action Planner" "$A"
+          grep -q "never an authorization" "$A"
+          grep -q "Never include passwords, tokens, cookies, secrets" "$A"
+          grep -q "never ask for a rebuild, replica, mockup or replacement frontend" "$A"
+          ! grep -Eq 'Invoke-Expression|iex[[:space:]]|Start-Process[[:space:]].*(cmd|powershell|pwsh)' "$A"
+          grep -q "Get-CentralDefaultContextPaths" "$T"
+          grep -q "powerlux_os/GIT_OPERATING_POLICY.md" "$T"
+          grep -q "CONTROLLER_NEEDED" "$T"
+          grep -q "controller_requests = \$true" "$T"
+          grep -q "never propose a rebuild, replica, mockup or replacement frontend" "$T"
+
+      - name: Verify bridge contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          F='supabase/functions/central-workshop-bridge/index.ts'
+          grep -q "assistant_request" "$F"
+          grep -q "merg_workshop_submit_assistant_request" "$F"
+          grep -q "withSupabase({ auth: 'user' }" "$F"
+          grep -q "owner_authorization_required" "$F"
+          grep -q "X-Central-Bridge': 'v2'" "$F"
+
+      - name: Verify migration authority boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          F='supabase/migrations/20260910163000_central_assistant_request_loop_v1.sql'
+          grep -q "merg_workshop_submit_assistant_request" "$F"
+          grep -q "runtime_not_verified_or_stale" "$F"
+          grep -q "execution_surface','chatgpt_controller'" "$F"
+          grep -q "local_model_has_write_authority',false" "$F"
+          grep -q "revoke all .* from public, anon, authenticated" "$F"
+          grep -q "grant execute .* to service_role" "$F"
+          grep -q "blocked_target_path" "$F"
+
+      - name: Summary
+        run: |
+          echo 'CENTRAL assistant-request contract PASS'
+          echo 'Local Qwen has project-aware read-only context and may request controller work.'
+          echo 'Local model receives no cloud credentials, repository write authority or production deploy authority.'
