@@ -33,12 +33,66 @@ function ConvertFrom-CentralAgentJson {
   return $null
 }
 
+function ConvertTo-CentralAssistantRequest {
+  param([Parameter(Mandatory=$true)][object]$Action)
+
+  $kind = ([string]$Action.kind).Trim().ToLowerInvariant()
+  if ($kind -notin @('review','verify','research','write_repo','write_content','connected_source','decision')) {
+    throw 'assistant_request kind is not allowed.'
+  }
+
+  $project = ([string]$Action.project).Trim().ToLowerInvariant()
+  if ([string]::IsNullOrWhiteSpace($project)) { $project = 'central' }
+  if ($project -notin @('central','powerlux','powertv','merg','cogni')) {
+    throw 'assistant_request project is not allowed.'
+  }
+
+  $instruction = ([string]$Action.instruction).Trim()
+  if ([string]::IsNullOrWhiteSpace($instruction)) { throw 'assistant_request requires instruction.' }
+  if ($instruction.Length -gt 4000) { $instruction = $instruction.Substring(0,4000) }
+
+  $summary = ([string]$Action.summary).Trim()
+  if ($summary.Length -gt 1000) { $summary = $summary.Substring(0,1000) }
+
+  $targetPath = ([string]$Action.target_path).Trim()
+  if (-not [string]::IsNullOrWhiteSpace($targetPath)) {
+    if ([IO.Path]::IsPathRooted($targetPath) -or $targetPath.Contains('..') -or (Test-CentralBlockedRelativePath $targetPath)) {
+      throw 'assistant_request target_path is blocked.'
+    }
+    if ($targetPath.Length -gt 500) { $targetPath = $targetPath.Substring(0,500) }
+  }
+
+  $targetRepo = ([string]$Action.target_repo).Trim()
+  if ($targetRepo.Length -gt 300) { $targetRepo = $targetRepo.Substring(0,300) }
+
+  $evidence = @()
+  if ($null -ne $Action.PSObject.Properties['evidence'] -and $null -ne $Action.evidence) {
+    $evidence = @($Action.evidence | Select-Object -First 8 | ForEach-Object {
+      $s = ([string]$_).Trim()
+      if ($s.Length -gt 500) { $s.Substring(0,500) } else { $s }
+    } | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+  }
+
+  return [ordered]@{
+    request_id = [guid]::NewGuid().ToString()
+    kind = $kind
+    project = $project
+    summary = $summary
+    instruction = $instruction
+    target_repo = $targetRepo
+    target_path = $targetPath
+    evidence = $evidence
+  }
+}
+
 function Invoke-CentralAutonomySafeAction {
   param(
     [Parameter(Mandatory=$true)][object]$Action,
     [Parameter(Mandatory=$true)][string]$WorkDir,
     [string]$ObsidianVault,
-    [Parameter(Mandatory=$true)][string]$OllamaUrl
+    [Parameter(Mandatory=$true)][string]$OllamaUrl,
+    [string]$NodeId,
+    [string]$ParentWorkItemId
   )
 
   $name = ([string]$Action.name).Trim().ToLowerInvariant()
@@ -102,6 +156,25 @@ function Invoke-CentralAutonomySafeAction {
       ) | Set-Content -LiteralPath $path -Encoding UTF8
       return [ordered]@{ name=$name; ok=$true; path=$path }
     }
+    'assistant_request' {
+      if ([string]::IsNullOrWhiteSpace($NodeId)) { throw 'assistant_request requires the verified workshop node id.' }
+      if ($null -eq (Get-Command Invoke-CentralBridge -ErrorAction SilentlyContinue)) {
+        throw 'CENTRAL bridge request function is unavailable.'
+      }
+      $request = ConvertTo-CentralAssistantRequest -Action $Action
+      $response = Invoke-CentralBridge 'assistant_request' @{
+        node_id = $NodeId
+        parent_work_item_id = $ParentWorkItemId
+        request = $request
+      }
+      return [ordered]@{
+        name = $name
+        ok = [bool]$response.ok
+        request_id = $request.request_id
+        controller_work_item_id = $response.data.work_item_id
+        controller_status = 'queued_for_chatgpt_review'
+      }
+    }
     default {
       return [ordered]@{ name=$name; ok=$false; error='Action is not in the CENTRAL local autonomy allowlist.' }
     }
@@ -116,7 +189,9 @@ function Invoke-CentralLocalAutonomy {
     [string]$ObsidianVault,
     [Parameter(Mandatory=$true)][string]$OllamaUrl,
     [string]$ConfiguredModel,
-    [string]$DetectedModel
+    [string]$DetectedModel,
+    [string]$NodeId,
+    [string]$ParentWorkItemId
   )
 
   $enabled = $true
@@ -144,10 +219,16 @@ Choose zero to three actions ONLY from:
 - repo_read with repository-relative text path
 - obsidian_read with vault-relative text path, only if configured
 - handoff_checkpoint with short Markdown content
+- assistant_request when ChatGPT/controller help is genuinely needed. For assistant_request use:
+  {"name":"assistant_request","kind":"review|verify|research|write_repo|write_content|connected_source|decision","project":"central|powerlux|powertv|merg|cogni","summary":"short reason","instruction":"what the controller should check or produce","target_repo":"optional owner/repo","target_path":"optional safe relative path","evidence":["short fact/source hints"]}
 
 Rules:
-- Evidence gathering and continuity only.
-- Never request shell commands, repository modification, commit/push, deployment, browser control, messages, auth changes or external side effects.
+- Evidence gathering and continuity only for local actions.
+- assistant_request is a REQUEST, never an authorization or proof that work happened.
+- Use assistant_request when cloud-connected verification, web/account data, GitHub/Supabase/Vercel access, or controlled repository/content writing is needed.
+- Never include passwords, tokens, cookies, secrets, auth files or hidden credentials in a request.
+- Never request arbitrary shell, force/reset/rebase, direct production deploy, purchases, messages, contracts, account/auth changes, or destructive actions.
+- For existing PowerLux/PowerTV, never ask for a rebuild, replica, mockup or replacement frontend.
 - Prefer zero actions when evidence is sufficient.
 - Output ONLY compact valid JSON, e.g. {"actions":[{"name":"git_status"}]}.
 
@@ -158,16 +239,16 @@ GUARDIAN:
 $guardian
 "@
 
-  $raw = Invoke-CentralOllamaAgent -OllamaUrl $OllamaUrl -Model $model -Prompt $plannerPrompt -MaxTokens 72 -ContextTokens 2304 -TimeoutSec 60
+  $raw = Invoke-CentralOllamaAgent -OllamaUrl $OllamaUrl -Model $model -Prompt $plannerPrompt -MaxTokens 130 -ContextTokens 2560 -TimeoutSec 75
   $plan = ConvertFrom-CentralAgentJson -Text $raw
   if ($null -eq $plan -or $null -eq $plan.actions) {
-    return [ordered]@{ enabled=$true; performance_profile='dual_model_v3'; planner_model=$model; plan_valid=$false; raw=$raw; executed=@() }
+    return [ordered]@{ enabled=$true; performance_profile='dual_model_v4'; planner_model=$model; plan_valid=$false; raw=$raw; executed=@() }
   }
 
   $executed = [System.Collections.Generic.List[object]]::new()
   foreach ($action in @($plan.actions | Select-Object -First 3)) {
     try {
-      $executed.Add((Invoke-CentralAutonomySafeAction -Action $action -WorkDir $WorkDir -ObsidianVault $ObsidianVault -OllamaUrl $OllamaUrl))
+      $executed.Add((Invoke-CentralAutonomySafeAction -Action $action -WorkDir $WorkDir -ObsidianVault $ObsidianVault -OllamaUrl $OllamaUrl -NodeId $NodeId -ParentWorkItemId $ParentWorkItemId))
     } catch {
       $executed.Add([ordered]@{ name=[string]$action.name; ok=$false; error=$_.Exception.Message })
     }
@@ -175,7 +256,7 @@ $guardian
 
   return [ordered]@{
     enabled = $true
-    performance_profile = 'dual_model_v3'
+    performance_profile = 'dual_model_v4'
     planner_model = $model
     plan_valid = $true
     requested = @($plan.actions | Select-Object -First 3)
