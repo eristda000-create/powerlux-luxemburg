@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - 'scripts/central_local_agent_autonomy.ps1'
+      - 'scripts/central_local_agent_team.ps1'
       - 'supabase/functions/central-workshop-bridge/**'
       - 'supabase/migrations/*central_assistant_request*'
       - '.github/workflows/central-assistant-request-gate.yml'
@@ -21,33 +22,45 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Parse local autonomy PowerShell
+      - name: Parse local PowerShell
         shell: pwsh
         run: |
-          $errors = $null
-          [void][System.Management.Automation.Language.Parser]::ParseFile(
-            (Resolve-Path './scripts/central_local_agent_autonomy.ps1'),
-            [ref]$null,
-            [ref]$errors
+          $files = @(
+            './scripts/central_local_agent_autonomy.ps1',
+            './scripts/central_local_agent_team.ps1'
           )
-          if ($errors.Count -gt 0) {
-            $errors | ForEach-Object { Write-Error $_.Message }
-            exit 1
+          foreach ($file in $files) {
+            $errors = $null
+            [void][System.Management.Automation.Language.Parser]::ParseFile(
+              (Resolve-Path $file),
+              [ref]$null,
+              [ref]$errors
+            )
+            if ($errors.Count -gt 0) {
+              $errors | ForEach-Object { Write-Error "${file}: $($_.Message)" }
+              exit 1
+            }
+            Write-Host "$file syntax PASS"
           }
-          Write-Host 'central_local_agent_autonomy.ps1 syntax PASS'
 
       - name: Verify local authority boundary
         shell: bash
         run: |
           set -euo pipefail
-          F='scripts/central_local_agent_autonomy.ps1'
-          grep -q "'assistant_request'" "$F"
-          grep -q "queued_for_chatgpt_review" "$F"
-          grep -q "local Safe-Action Planner" "$F"
-          grep -q "never an authorization" "$F"
-          grep -q "Never include passwords, tokens, cookies, secrets" "$F"
-          grep -q "never ask for a rebuild, replica, mockup or replacement frontend" "$F"
-          ! grep -Eq 'Invoke-Expression|iex[[:space:]]|Start-Process[[:space:]].*(cmd|powershell|pwsh)' "$F"
+          A='scripts/central_local_agent_autonomy.ps1'
+          T='scripts/central_local_agent_team.ps1'
+          grep -q "'assistant_request'" "$A"
+          grep -q "queued_for_chatgpt_review" "$A"
+          grep -q "local Safe-Action Planner" "$A"
+          grep -q "never an authorization" "$A"
+          grep -q "Never include passwords, tokens, cookies, secrets" "$A"
+          grep -q "never ask for a rebuild, replica, mockup or replacement frontend" "$A"
+          ! grep -Eq 'Invoke-Expression|iex[[:space:]]|Start-Process[[:space:]].*(cmd|powershell|pwsh)' "$A"
+          grep -q "Get-CentralDefaultContextPaths" "$T"
+          grep -q "powerlux_os/GIT_OPERATING_POLICY.md" "$T"
+          grep -q "CONTROLLER_NEEDED" "$T"
+          grep -q "controller_requests = \$true" "$T"
+          grep -q "never propose a rebuild, replica, mockup or replacement frontend" "$T"
 
       - name: Verify bridge contract
         shell: bash
@@ -76,4 +89,5 @@ jobs:
       - name: Summary
         run: |
           echo 'CENTRAL assistant-request contract PASS'
-          echo 'Local model can request controller work but receives no cloud write authority.'
+          echo 'Local Qwen has project-aware read-only context and may request controller work.'
+          echo 'Local model receives no cloud credentials, repository write authority or production deploy authority.'
