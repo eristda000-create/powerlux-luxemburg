@@ -65,8 +65,7 @@ foreach ($candidate in @($existingProcess,$existingUser)) {
       [Environment]::SetEnvironmentVariable('OBSIDIAN_VAULT',$candidate,'User')
     }
     $null = Save-CentralObsidianDiscovery $state
-    $state
-    exit 0
+    return $state
   }
 }
 
@@ -88,8 +87,7 @@ if ($vaults.Count -eq 1) {
     detected_at = [DateTimeOffset]::UtcNow.ToString('o')
   }
   $null = Save-CentralObsidianDiscovery $state
-  $state
-  exit 0
+  return $state
 }
 
 $status = if ($vaults.Count -eq 0) { 'not_found' } else { 'multiple_candidates' }
@@ -102,5 +100,4 @@ $state = [ordered]@{
   detected_at = [DateTimeOffset]::UtcNow.ToString('o')
 }
 $null = Save-CentralObsidianDiscovery $state
-$state
-exit 0
+return $state
