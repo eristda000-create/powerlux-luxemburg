@@ -36,7 +36,7 @@ if (Test-Path -LiteralPath $obsidianConnector -PathType Leaf) {
 }
 
 $obsidianMount = Join-Path $PSScriptRoot 'central_obsidian_mount.ps1'
-if (Test-Path -LiteralPath $obsidianMount -PathType Leaf -and -not [string]::IsNullOrWhiteSpace($env:OBSIDIAN_VAULT)) {
+if ((Test-Path -LiteralPath $obsidianMount -PathType Leaf) -and -not [string]::IsNullOrWhiteSpace($env:OBSIDIAN_VAULT)) {
   try {
     $mountState = & $obsidianMount -Vault $env:OBSIDIAN_VAULT -RepoRoot $repoRoot
     if ($null -ne $mountState) {
