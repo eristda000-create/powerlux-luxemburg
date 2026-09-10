@@ -25,10 +25,19 @@ Current delegation rule: only Sean + Tom may bind PowerLux on contracts, ownersh
 ### D-004 — Canonical website release path
 **Date:** 2026-09-06 website audit
 **Status:** DECIDED / TECHNICAL CONTROL
-**Decision:** New public frontend changes must move toward `canonical source → Git → preview → acceptance tests → known rollback → production`. Do not solve the current recovery-loader problem by adding another production runtime dependency to an old preview/deployment URL.
-**Reason:** The live site currently works through a recovery/loader chain while the connected GitHub repository is not the complete public frontend source and the inspected Vercel project is not Git-linked.
-**Implication:** Safe backend/security fixes may be applied independently when validated. Frontend UX/conversion changes should remain in a noindex preview until canonical source and release control are established.
-**Evidence:** `powerlux_os/WEBSITE_AUDIT_2026-09-06.md`.
+**Decision:** Public frontend work must be performed on the existing real project/source and follow `existing canonical source → Git → preview → acceptance tests → known rollback → production`. Do not create or reconstruct a replacement website, and do not deepen the current recovery-loader chain.
+**Reason:** The objective is to improve the existing PowerLux project, not to recreate it from screenshots, deployed HTML, memory or inferred behavior.
+**Implication:** Backend/security/product work may continue on verified existing systems. Frontend changes require the actual existing source/project path; if that source path is not available in the currently connected tool surface, the work remains blocked rather than being reconstructed.
+**Evidence:** `powerlux_os/WEBSITE_AUDIT_2026-09-06.md` plus owner correction recorded 2026-09-10.
+
+### D-005 — Existing-project-only rule for PowerLux and PowerTV
+**Date:** 2026-09-10
+**Status:** DECIDED / CURRENT / NON-NEGOTIABLE
+**Decision:** PowerLux and PowerTV are existing projects. AI agents must continue and improve those projects only. They must not create a substitute site, recovery copy, parallel frontend, screenshot-based rebuild or new project presented as the original/current product.
+**Implementation consequence:** Draft PR #6 (`canonical-release-2026-09-06`) and draft PR #8 (`feature/powerlux-powertv-integration-v1`) were closed without merge on 2026-09-10 because they represented or depended on a reconstruction/integration path that was not the intended development path.
+**PowerLux source rule:** Work in the existing `eristda000-create/powerlux-luxemburg` repository and verified existing PowerLux backend/runtime services. Do not infer missing website source from deployed output.
+**PowerTV source rule:** Work on verified existing PowerTV backend/content/editorial objects and the actual PowerTV project when its source/project surface is directly available. Absence of a separate PowerTV repository in the currently connected GitHub installation is not permission to reconstruct one.
+**Agent rule:** Ollama/Qwen may analyze and execute only against verified existing project objects/context supplied by CENTRAL. Proposed output remains draft until checked against the owning system.
 
 ## Open decision gates
 
@@ -62,11 +71,10 @@ Current delegation rule: only Sean + Tom may bind PowerLux on contracts, ownersh
 **Need:** quantified minimum-price logic and approval rule.
 
 ### O-007 — Website production architecture
-**Status:** OPEN / TECHNICAL — REMEDIATION ACTIVE
-**Verified 2026-09-06:** production currently uses a recovery/loader chain; canonical public frontend source is not complete in connected GitHub; Vercel project is not Git-linked; `robots.txt` and `sitemap.xml` are absent.
-**Already fixed live:** profile age-group self-escalation blocked; public Radar guard hardened.
-**Preview ready:** `powerlux-preview-v3` tests conversion, accessibility, safer brand wording and lead intake without changing production.
-**Need to close gate:** recover canonical source, Git-link deployment, prove core journeys, establish rollback, promote validated frontend changes, then remove historical runtime dependencies.
+**Status:** OPEN / TECHNICAL
+**Verified:** production and backend services exist; current release architecture has reliability/source-control debt and the connected Vercel project is not Git-linked.
+**Current rule:** repair and improve the existing project only. Do not use a recovered/reconstructed frontend as the solution.
+**Need to close gate:** identify/use the actual existing public frontend source/project path, connect it to reproducible release control, prove core journeys and rollback, and then make changes there.
 
 ### O-008 — Brand/IP filing sequence
 **Status:** OPEN
