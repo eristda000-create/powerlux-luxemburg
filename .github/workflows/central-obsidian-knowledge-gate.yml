@@ -1,0 +1,58 @@
+name: CENTRAL Obsidian Knowledge Gate
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'knowledge/**'
+      - 'scripts/central_obsidian_mount.ps1'
+      - 'scripts/start-central-workshop.ps1'
+      - 'scripts/test-central-obsidian-knowledge.ps1'
+      - 'supabase/migrations/*obsidian*knowledge*.sql'
+      - '.github/workflows/central-obsidian-knowledge-gate.yml'
+  workflow_dispatch:
+
+jobs:
+  knowledge:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Parse PowerShell
+        shell: pwsh
+        run: |
+          $files = @(
+            'scripts/central_obsidian_mount.ps1',
+            'scripts/start-central-workshop.ps1',
+            'scripts/test-central-obsidian-knowledge.ps1'
+          )
+          foreach ($file in $files) {
+            $tokens = $null
+            $errors = $null
+            [void][System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path $file), [ref]$tokens, [ref]$errors)
+            if ($errors.Count -gt 0) { throw "${file}: $($errors | Out-String)" }
+          }
+      - name: Test safe Obsidian knowledge mount
+        shell: pwsh
+        run: ./scripts/test-central-obsidian-knowledge.ps1
+      - name: Verify canonical knowledge pages
+        shell: pwsh
+        run: |
+          $required = @(
+            'knowledge/00_HOME.md',
+            'knowledge/OPERATING_MODEL.md',
+            'knowledge/PROJECTS/CENTRAL/STATE.md',
+            'knowledge/PROJECTS/POWERLUX/STATE.md',
+            'knowledge/PROJECTS/POWERTV/STATE.md',
+            'knowledge/PROJECTS/VENDETTA/STATE.md',
+            'knowledge/PROJECTS/MERG/STATE.md',
+            'knowledge/PROJECTS/COGNI/STATE.md'
+          )
+          foreach ($file in $required) {
+            if (-not (Test-Path -LiteralPath $file -PathType Leaf)) { throw "Missing $file" }
+            $text = Get-Content -LiteralPath $file -Raw
+            if ($text -notmatch 'Value' -and $file -like '*STATE.md') { throw "State page lacks value framing: $file" }
+          }
+          $policy = Get-Content -LiteralPath 'knowledge/OPERATING_MODEL.md' -Raw
+          foreach ($needle in @('Fact base','Decision / recommendation','Next actions','KPI / value realization','Evidence ledger')) {
+            if ($policy -notmatch [regex]::Escape($needle)) { throw "Knowledge policy missing: $needle" }
+          }
