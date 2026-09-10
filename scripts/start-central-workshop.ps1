@@ -17,6 +17,24 @@ if ([string]::IsNullOrWhiteSpace($env:OLLAMA_URL)) {
   $env:OLLAMA_URL = 'http://127.0.0.1:11434'
 }
 
+$obsidianConnector = Join-Path $PSScriptRoot 'central_obsidian_connect.ps1'
+if (Test-Path -LiteralPath $obsidianConnector -PathType Leaf) {
+  try {
+    $obsidianState = & $obsidianConnector
+    if ($null -ne $obsidianState) {
+      if ($obsidianState.status -in @('connected_existing','connected_auto')) {
+        Write-Host "Obsidian connected: $($obsidianState.vault)"
+      } elseif ($obsidianState.status -eq 'multiple_candidates') {
+        Write-Warning "Multiple Obsidian vaults found. CENTRAL will not guess. Candidates are stored in ~/.central/obsidian-discovery.json."
+      } else {
+        Write-Host 'Obsidian vault not found in the approved discovery roots.'
+      }
+    }
+  } catch {
+    Write-Warning "Obsidian autodiscovery failed safely: $($_.Exception.Message)"
+  }
+}
+
 function Test-Ollama {
   try {
     $null = Invoke-RestMethod -Method Get -Uri "$($env:OLLAMA_URL.TrimEnd('/'))/api/tags" -TimeoutSec 4
