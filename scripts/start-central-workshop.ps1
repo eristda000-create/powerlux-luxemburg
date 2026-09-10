@@ -35,6 +35,24 @@ if (Test-Path -LiteralPath $obsidianConnector -PathType Leaf) {
   }
 }
 
+$obsidianMount = Join-Path $PSScriptRoot 'central_obsidian_mount.ps1'
+if (Test-Path -LiteralPath $obsidianMount -PathType Leaf -and -not [string]::IsNullOrWhiteSpace($env:OBSIDIAN_VAULT)) {
+  try {
+    $mountState = & $obsidianMount -Vault $env:OBSIDIAN_VAULT -RepoRoot $repoRoot
+    if ($null -ne $mountState) {
+      if ([bool]$mountState.mounted) {
+        Write-Host "CENTRAL knowledge mounted in Obsidian: $($mountState.mount_path)"
+      } elseif ($mountState.status -eq 'conflict_existing_path') {
+        Write-Warning 'Obsidian/CENTRAL already exists and was not changed. See ~/.central/obsidian-knowledge-mount.json.'
+      } else {
+        Write-Warning "CENTRAL knowledge mount not active: $($mountState.status)"
+      }
+    }
+  } catch {
+    Write-Warning "CENTRAL knowledge mount failed safely: $($_.Exception.Message)"
+  }
+}
+
 function Test-Ollama {
   try {
     $null = Invoke-RestMethod -Method Get -Uri "$($env:OLLAMA_URL.TrimEnd('/'))/api/tags" -TimeoutSec 4
