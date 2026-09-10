@@ -64,9 +64,21 @@ Each project's `STATE.md` is the first-read executive page. Keep it concise enou
 
 Detailed evidence belongs in source systems or linked notes, not duplicated across many files.
 
+## Opportunity discovery / brainstorming
+
+Brainstorming is a permanent operating capability, not a one-off exercise around the currently visible project.
+
+Before prioritising new growth work, CENTRAL should use `knowledge/OPPORTUNITY_RADAR.md` and separate:
+
+1. **divergence** — broad opportunity generation across all mandatory lenses;
+2. **convergence** — evidence review, deduplication, scoring and selection of only the best experiments.
+
+A current event, sponsor, partner or technical issue must not become the whole portfolio by repetition. The opportunity universe must deliberately include alternatives outside the current focal topic. Qwen may generate hypotheses broadly; the controller verifies consequential external facts and narrows the set to reversible, measurable tests.
+
 ## Agent behavior
 
 - Qwen should consult the relevant project state before substantive local analysis.
+- For broad opportunity/growth work, Qwen and the controller must also consult `OPPORTUNITY_RADAR.md` and avoid single-project or single-event tunnel vision.
 - If current cloud/account/web truth is required, output `CONTROLLER_NEEDED` instead of guessing.
 - Controller should check whether a completed action changes durable project knowledge.
 - If yes, update the relevant canonical knowledge note in the same controlled Git workflow as the underlying project change whenever practical.
