@@ -194,6 +194,13 @@ function Invoke-CentralLocalAutonomy {
     [string]$ParentWorkItemId
   )
 
+  if ([string]::IsNullOrWhiteSpace($NodeId)) {
+    $NodeId = [Environment]::GetEnvironmentVariable('CENTRAL_WORKSHOP_NODE_ID')
+    if ([string]::IsNullOrWhiteSpace($NodeId)) {
+      $NodeId = "$([System.Net.Dns]::GetHostName())-$env:USERNAME"
+    }
+  }
+
   $enabled = $true
   if ($null -ne $Payload.PSObject.Properties['allow_small_actions']) {
     $enabled = [bool]$Payload.allow_small_actions
