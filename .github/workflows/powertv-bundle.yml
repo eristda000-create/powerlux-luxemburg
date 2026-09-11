@@ -1,0 +1,85 @@
+name: PowerTV self-contained Vercel bundle
+
+on:
+  push:
+    branches:
+      - feature/powertv-vercel-migration
+    paths:
+      - .github/workflows/powertv-bundle.yml
+
+permissions:
+  contents: write
+
+jobs:
+  bundle:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/powertv-vercel-migration
+
+      - name: Build exact self-contained HTML bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import base64, pathlib, re
+
+          root = pathlib.Path('powertv')
+          html = (root/'index.html').read_text(encoding='utf-8')
+          css = (root/'assets/index-C8bposip.css').read_text(encoding='utf-8')
+          js = (root/'assets/index-qo0EwjoB.js').read_text(encoding='utf-8')
+
+          mime = {
+            '.png':'image/png', '.jpg':'image/jpeg', '.jpeg':'image/jpeg',
+            '.svg':'image/svg+xml', '.webp':'image/webp', '.gif':'image/gif'
+          }
+          assets = [
+            'associate-acs.png','associate-jens-avatar.jpg','associate-laf-avatar.jpg',
+            'associate-uibff-in-avatar.jpg','associate-uibff.jpg','powertv-logo.jpg','icon.svg'
+          ]
+
+          def data_uri(name):
+            p = root/name
+            b64 = base64.b64encode(p.read_bytes()).decode('ascii')
+            return f"data:{mime[p.suffix.lower()]};base64,{b64}"
+
+          uris = {name:data_uri(name) for name in assets}
+
+          # Preserve runtime code; only replace local binary URLs with byte-equivalent data URIs.
+          for name, uri in uris.items():
+            js = js.replace('/'+name, uri)
+            css = css.replace('/'+name, uri)
+
+          # Inline the exact captured CSS and JS; no visual/content edits.
+          html = re.sub(r'<link rel="stylesheet" crossorigin href="/assets/index-C8bposip\.css">',
+                        '<style id="powertv-exact-css">'+css+'</style>', html, count=1)
+          safe_js = js.replace('</script', '<\\/script')
+          html = re.sub(r'<script type="module" crossorigin src="/assets/index-qo0EwjoB\.js"></script>',
+                        lambda m: '<script type="module" id="powertv-exact-js">'+safe_js+'</script>', html, count=1)
+          html = html.replace('href="/icon.svg"', 'href="'+uris['icon.svg']+'"')
+          html = html.replace('src="/powertv-logo.jpg"', 'src="'+uris['powertv-logo.jpg']+'"')
+
+          # Hard fail if any captured local release asset is still referenced externally.
+          leftovers = re.findall(r'''["'`](\/[^"'`?#<>\s]+\.(?:png|jpe?g|svg|css|js|webp|gif))["'`]''', html, re.I)
+          if leftovers:
+            raise SystemExit('Unbundled local assets: '+repr(sorted(set(leftovers))))
+
+          out = root/'powertv-self-contained.html'
+          out.write_text(html, encoding='utf-8')
+          print('bundle_bytes=', out.stat().st_size)
+          print('contains_title=', 'PowerTV — Sport jenseits des Mainstreams' in html)
+          print('contains_runtime=', 'PowerLux Associates' in js or 'KANALVORSTELLUNG' in js)
+          PY
+          test -s powertv/powertv-self-contained.html
+
+      - name: Commit deterministic bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "PowerTV Migration Bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add powertv/powertv-self-contained.html
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m "build(powertv): add exact self-contained Vercel bundle"
+          git push origin HEAD:feature/powertv-vercel-migration
