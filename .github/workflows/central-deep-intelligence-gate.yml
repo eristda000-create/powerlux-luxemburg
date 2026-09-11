@@ -1,0 +1,20 @@
+name: CENTRAL Deep Intelligence Gate
+
+on:
+  pull_request:
+    paths:
+      - 'scripts/central_*'
+      - '.github/workflows/central-deep-intelligence-gate.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  powershell-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate deep intelligence PowerShell
+        shell: pwsh
+        run: ./scripts/test-central-deep-intelligence.ps1
