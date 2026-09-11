@@ -27,6 +27,9 @@ if (Test-Path -LiteralPath $labHelper -PathType Leaf) { . $labHelper }
 $benchmarkHelper = Join-Path $PSScriptRoot 'central_model_benchmark.ps1'
 if (Test-Path -LiteralPath $benchmarkHelper -PathType Leaf) { . $benchmarkHelper }
 
+$modelPullHelper = Join-Path $PSScriptRoot 'central_model_pull.ps1'
+if (Test-Path -LiteralPath $modelPullHelper -PathType Leaf) { . $modelPullHelper }
+
 function Get-CentralPayloadStringSafe {
   param([object]$Payload,[string]$Name)
   try {
@@ -66,6 +69,12 @@ function Invoke-CentralLocalAgentTeam {
         if ($null -ne $effectivePayload.PSObject.Properties['models']) { $requestedModels=@($effectivePayload.models | ForEach-Object { [string]$_ }) }
       } catch {}
       return [ordered]@{ action='local_agent_team'; performance_profile='powershell_capability_v1'; mode=$specialMode; result=(Invoke-CentralModelBenchmark -OllamaUrl $OllamaUrl -Models $requestedModels); access=@{ arbitrary_shell=$false; capability='bounded_model_benchmark' } }
+    }
+    'model_pull' {
+      if ($null -eq (Get-Command Start-CentralOllamaModelPull -ErrorAction SilentlyContinue)) { throw 'Model pull helper is unavailable.' }
+      $modelToPull = Get-CentralPayloadStringSafe -Payload $effectivePayload -Name 'model_to_pull'
+      if ([string]::IsNullOrWhiteSpace($modelToPull)) { throw 'model_pull requires payload.model_to_pull.' }
+      return [ordered]@{ action='local_agent_team'; performance_profile='powershell_capability_v1'; mode=$specialMode; result=(Start-CentralOllamaModelPull -Model $modelToPull -OllamaUrl $OllamaUrl); access=@{ arbitrary_shell=$false; capability='allowlisted_nonblocking_model_pull' } }
     }
   }
 
