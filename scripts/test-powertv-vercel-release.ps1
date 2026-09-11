@@ -24,6 +24,9 @@ if ($helperSource -match '(?i)\bvercel\s+link\b') { throw 'Capability must not c
 if ($helperSource -match '(?i)project\s+(add|rm|remove|delete)') { throw 'Capability must not create or delete Vercel projects.' }
 if ($helperSource -notmatch "CentralPowerTvVercelProject = 'powertv-vercel-release'") { throw 'Exact canonical project constant missing.' }
 if ($helperSource -notmatch "rights_policy = 'public_youtube_embeds_plus_official_ppv_link_only'") { throw 'Rights-safe release policy marker missing.' }
+if ($helperSource -notmatch "Get-Command npx") { throw 'Bounded Vercel helper must support an npx fallback when no global Vercel CLI exists.' }
+if ($helperSource -notmatch "vercel@latest") { throw 'npx fallback must invoke only the Vercel CLI package.' }
+if ($helperSource -match '(?i)npm\s+(install|i)\s+(-g|--global)') { throw 'Vercel fallback must never install a global package.' }
 
 # Probe succeeds only when the exact project is in a stubbed Vercel project list.
 function Invoke-CentralBoundedVercelCli {
@@ -34,11 +37,13 @@ function Invoke-CentralBoundedVercelCli {
     stdout='[{"name":"powertv-vercel-release","id":"prj_exact"},{"name":"other","id":"prj_other"}]'
     stderr=''
     timed_out=$false
+    transport='npx_ephemeral'
   }
 }
 $probe = Get-CentralPowerTvVercelProbe -WorkDir $root
 if (-not [bool]$probe.ready -or $probe.status -ne 'ready') { throw 'Exact-project Vercel probe should be ready.' }
 if ($probe.exact_project -ne 'powertv-vercel-release') { throw 'Probe returned the wrong Vercel project.' }
+if ($probe.transport -ne 'npx_ephemeral') { throw 'Probe did not preserve the bounded CLI transport marker.' }
 
 # A similar PowerTV project must never be accepted as a substitute.
 function Invoke-CentralBoundedVercelCli {
@@ -49,6 +54,7 @@ function Invoke-CentralBoundedVercelCli {
     stdout='[{"name":"powertv-current-2026","id":"prj_wrong"},{"name":"powertv-preview","id":"prj_preview"}]'
     stderr=''
     timed_out=$false
+    transport='npx_ephemeral'
   }
 }
 $negative = Get-CentralPowerTvVercelProbe -WorkDir $root
@@ -64,7 +70,7 @@ function Get-CentralPowerTvVercelProbe {
 function Invoke-CentralBoundedVercelCli {
   param([string[]]$Arguments,[int]$TimeoutSec)
   $script:CapturedDeployArgs = @($Arguments)
-  return [ordered]@{ available=$true; exit_code=0; stdout='https://powertv-vercel-release-abc.vercel.app'; stderr=''; timed_out=$false }
+  return [ordered]@{ available=$true; exit_code=0; stdout='https://powertv-vercel-release-abc.vercel.app'; stderr=''; timed_out=$false; transport='npx_ephemeral' }
 }
 function Test-CentralPowerTvCanonicalRelease {
   param([int]$Attempts=12,[int]$DelaySeconds=5)
@@ -72,6 +78,7 @@ function Test-CentralPowerTvCanonicalRelease {
 }
 $publish = Publish-CentralPowerTvVercelRelease -WorkDir $root
 if ($publish.status -ne 'deployed_verified') { throw 'Publish did not require verified canonical release.' }
+if ($publish.transport -ne 'npx_ephemeral') { throw 'Publish did not preserve the bounded CLI transport marker.' }
 $joined = $script:CapturedDeployArgs -join ' '
 if ($joined -notmatch '^deploy\s') { throw 'Publish does not invoke Vercel deploy.' }
 if ($joined -notmatch '--prod') { throw 'Publish is not a production deploy.' }

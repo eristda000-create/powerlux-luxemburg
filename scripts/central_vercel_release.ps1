@@ -33,8 +33,20 @@ function Invoke-CentralBoundedVercelCli {
   if ($null -eq $command) {
     $command = Get-Command vercel.cmd -ErrorAction SilentlyContinue | Select-Object -First 1
   }
+
+  $commandPrefix = @()
+  $transport = 'installed_cli'
   if ($null -eq $command) {
-    return [ordered]@{ available=$false; exit_code=$null; stdout=''; stderr='Vercel CLI is not installed or not on PATH.'; timed_out=$false }
+    $command = Get-Command npx -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($null -eq $command) {
+      $command = Get-Command npx.cmd -ErrorAction SilentlyContinue | Select-Object -First 1
+    }
+    if ($null -eq $command) {
+      return [ordered]@{ available=$false; exit_code=$null; stdout=''; stderr='Neither Vercel CLI nor npx is available on PATH.'; timed_out=$false; transport='unavailable' }
+    }
+    # Ephemeral package execution only: do not install Vercel globally or create/link projects.
+    $commandPrefix = @('--yes','vercel@latest')
+    $transport = 'npx_ephemeral'
   }
 
   $source = [string]$command.Source
@@ -47,11 +59,12 @@ function Invoke-CentralBoundedVercelCli {
   $psi.Environment['NO_COLOR'] = '1'
   $psi.Environment['CI'] = '1'
 
+  $allArguments = @($commandPrefix) + @($Arguments)
   if ($IsWindows -and $extension -in @('.cmd','.bat')) {
     $psi.FileName = if ([string]::IsNullOrWhiteSpace($env:ComSpec)) { 'cmd.exe' } else { $env:ComSpec }
     $tokens = [System.Collections.Generic.List[string]]::new()
     $tokens.Add((ConvertTo-CentralCmdToken -Value $source))
-    foreach ($arg in $Arguments) { $tokens.Add((ConvertTo-CentralCmdToken -Value ([string]$arg))) }
+    foreach ($arg in $allArguments) { $tokens.Add((ConvertTo-CentralCmdToken -Value ([string]$arg))) }
     $psi.ArgumentList.Add('/d')
     $psi.ArgumentList.Add('/c')
     $psi.ArgumentList.Add(($tokens -join ' '))
@@ -62,10 +75,10 @@ function Invoke-CentralBoundedVercelCli {
     $psi.ArgumentList.Add('-NonInteractive')
     $psi.ArgumentList.Add('-File')
     $psi.ArgumentList.Add($source)
-    foreach ($arg in $Arguments) { $psi.ArgumentList.Add([string]$arg) }
+    foreach ($arg in $allArguments) { $psi.ArgumentList.Add([string]$arg) }
   } else {
     $psi.FileName = $source
-    foreach ($arg in $Arguments) { $psi.ArgumentList.Add([string]$arg) }
+    foreach ($arg in $allArguments) { $psi.ArgumentList.Add([string]$arg) }
   }
 
   $process = [Diagnostics.Process]::new()
@@ -90,6 +103,7 @@ function Invoke-CentralBoundedVercelCli {
     stdout = ConvertTo-CentralSafeCliText -Text $stdout -MaxChars 12000
     stderr = ConvertTo-CentralSafeCliText -Text $stderr -MaxChars 2400
     timed_out = (-not $finished)
+    transport = $transport
   }
 }
 
@@ -173,18 +187,18 @@ function Get-CentralPowerTvVercelProbe {
   $sourceState = Test-CentralPowerTvReleaseSource -WorkDir $WorkDir
   $cli = Invoke-CentralBoundedVercelCli -Arguments @('project','ls','--json') -TimeoutSec 90
   if (-not [bool]$cli.available) {
-    return [ordered]@{ status='cli_unavailable'; ready=$false; source=$sourceState; stderr=$cli.stderr }
+    return [ordered]@{ status='cli_unavailable'; ready=$false; source=$sourceState; stderr=$cli.stderr; transport=$cli.transport }
   }
   if ([bool]$cli.timed_out) {
-    return [ordered]@{ status='probe_timeout'; ready=$false; source=$sourceState }
+    return [ordered]@{ status='probe_timeout'; ready=$false; source=$sourceState; transport=$cli.transport }
   }
   if ([int]$cli.exit_code -ne 0) {
-    return [ordered]@{ status='cli_not_authenticated_or_failed'; ready=$false; source=$sourceState; stderr=$cli.stderr }
+    return [ordered]@{ status='cli_not_authenticated_or_failed'; ready=$false; source=$sourceState; stderr=$cli.stderr; transport=$cli.transport }
   }
 
   try { $projects = @(ConvertFrom-CentralVercelProjectList -Text ([string]$cli.stdout)) }
   catch {
-    return [ordered]@{ status='project_list_parse_failed'; ready=$false; source=$sourceState; error=$_.Exception.Message }
+    return [ordered]@{ status='project_list_parse_failed'; ready=$false; source=$sourceState; error=$_.Exception.Message; transport=$cli.transport }
   }
 
   $match = $projects | Where-Object {
@@ -201,6 +215,7 @@ function Get-CentralPowerTvVercelProbe {
       required_project = $script:CentralPowerTvVercelProject
       visible_powertv_projects = $visible
       source = $sourceState
+      transport = $cli.transport
     }
   }
 
@@ -213,6 +228,7 @@ function Get-CentralPowerTvVercelProbe {
     project_id = $projectId
     canonical_url = $script:CentralPowerTvCanonicalUrl
     source = $sourceState
+    transport = $cli.transport
   }
 }
 
@@ -281,5 +297,6 @@ function Publish-CentralPowerTvVercelRelease {
     source = $probe.source
     verification = $verification
     rights_policy = 'public_youtube_embeds_plus_official_ppv_link_only'
+    transport = $deploy.transport
   }
 }
