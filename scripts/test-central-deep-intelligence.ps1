@@ -18,7 +18,7 @@ foreach ($rel in $files) {
   if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { throw "Missing: $rel" }
   $tokens=$null; $errors=$null
   [void][System.Management.Automation.Language.Parser]::ParseFile($path,[ref]$tokens,[ref]$errors)
-  if ($errors.Count -gt 0) { throw "PowerShell parse errors in $rel: $($errors[0].Message)" }
+  if ($errors.Count -gt 0) { throw "PowerShell parse errors in ${rel}: $($errors[0].Message)" }
 }
 
 . (Join-Path $root 'scripts/central_context_capsule.ps1')
