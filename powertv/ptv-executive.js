@@ -118,26 +118,40 @@
     return logo ? (logo.closest('header') || logo.parentElement?.parentElement) : null;
   }
 
-  function tagLegacyReplay() {
+  function findLegacyReplaySection() {
     const nodes = Array.from(document.querySelectorAll('h1,h2,h3,div,span'));
     const heading = nodes.find(el => (el.textContent || '').trim() === 'Sportvideos & Wettkämpfe');
-    if (!heading) return;
-    const section = heading.closest('section') || heading.parentElement?.parentElement?.parentElement;
-    if (section) section.classList.add('ptv-legacy-replay');
+    if (!heading) return null;
+    const semanticSection = heading.closest('section');
+    if (semanticSection) return semanticSection;
+    let node = heading;
+    while (node.parentElement && node.parentElement !== document.body) {
+      if (node.parentElement.tagName === 'MAIN') return node;
+      node = node.parentElement;
+    }
+    return heading.parentElement?.parentElement?.parentElement || heading.parentElement;
   }
 
   function ensureMounted() {
     document.querySelectorAll('.evw-sticky-link').forEach(el => el.remove());
     patchLegacyAssets();
-    tagLegacyReplay();
+
+    const replaySection = findLegacyReplaySection();
+    if (replaySection) replaySection.classList.add('ptv-legacy-replay');
 
     let root = document.getElementById('ptv-command-center');
-    const anchor = findNavAnchor();
-    if (!anchor || !anchor.parentElement) return;
-
     if (!root) root = build();
-    if (anchor.nextElementSibling !== root) {
-      try { anchor.insertAdjacentElement('afterend', root); } catch (_) {}
+
+    if (replaySection && replaySection.parentElement) {
+      if (replaySection.previousElementSibling !== root) {
+        try { replaySection.insertAdjacentElement('beforebegin', root); } catch (_) {}
+      }
+    } else {
+      const anchor = findNavAnchor();
+      if (!anchor || !anchor.parentElement) return;
+      if (anchor.nextElementSibling !== root) {
+        try { anchor.insertAdjacentElement('afterend', root); } catch (_) {}
+      }
     }
     patchLegacyAssets();
   }
