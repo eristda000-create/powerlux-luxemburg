@@ -20,26 +20,113 @@ jobs:
         with:
           ref: feature/powertv-vercel-migration
 
-      - name: Capture immutable published PowerTV build
+      - name: Capture complete immutable PowerTV asset graph
         shell: bash
         run: |
           set -euo pipefail
           SOURCE_BASE="https://6aa07af3e223ccf2a59bb7c1--powertv-network.netlify.app"
+          rm -rf powertv
           mkdir -p powertv
           curl --fail --silent --show-error --location "$SOURCE_BASE/index.html" -o powertv/index.html
-          curl --fail --silent --show-error --location "$SOURCE_BASE/associate-acs.png" -o powertv/associate-acs.png
+
+          python3 - <<'PY'
+          import os, re, urllib.parse, urllib.request
+
+          base = "https://6aa07af3e223ccf2a59bb7c1--powertv-network.netlify.app"
+          root = "powertv"
+          text_ext = {".html", ".htm", ".js", ".mjs", ".css", ".json", ".webmanifest", ".svg", ".txt"}
+          asset_ext = text_ext | {".png", ".jpg", ".jpeg", ".webp", ".gif", ".ico", ".avif", ".woff", ".woff2", ".ttf", ".otf", ".mp4", ".webm"}
+          queue = ["/index.html"]
+          seen = set()
+          required_from_index = set()
+
+          def local_file(path):
+              clean = urllib.parse.urlsplit(path).path
+              if clean == "/": clean = "/index.html"
+              return os.path.join(root, clean.lstrip("/"))
+
+          def download(path, required=False):
+              clean = urllib.parse.urlsplit(path).path
+              if not clean.startswith("/"):
+                  return False
+              ext = os.path.splitext(clean.lower())[1]
+              if ext not in asset_ext:
+                  return False
+              target = local_file(clean)
+              if os.path.exists(target):
+                  return True
+              os.makedirs(os.path.dirname(target), exist_ok=True)
+              url = urllib.parse.urljoin(base + "/", clean.lstrip("/"))
+              try:
+                  req = urllib.request.Request(url, headers={"User-Agent":"PowerTV-Vercel-Migration/1.0"})
+                  with urllib.request.urlopen(req, timeout=30) as resp, open(target, "wb") as out:
+                      out.write(resp.read())
+                  print("captured", clean)
+                  return True
+              except Exception as exc:
+                  if required:
+                      raise
+                  print("optional asset skipped", clean, repr(exc))
+                  return False
+
+          # index.html is already downloaded byte-for-byte.
+          while queue:
+              path = queue.pop(0)
+              clean = urllib.parse.urlsplit(path).path
+              if clean in seen:
+                  continue
+              seen.add(clean)
+              filename = local_file(clean)
+              if not os.path.exists(filename):
+                  if not download(clean, required=(clean in required_from_index)):
+                      continue
+              ext = os.path.splitext(clean.lower())[1]
+              if ext not in text_ext:
+                  continue
+              try:
+                  data = open(filename, "r", encoding="utf-8", errors="ignore").read()
+              except Exception:
+                  continue
+
+              candidates = set()
+              # Root-relative strings in HTML/JS/JSON/SVG.
+              candidates.update(re.findall(r'''["'`](\/[^"'`?#<>\s]+(?:\?[^"'`#<>\s]*)?)["'`]''', data))
+              # CSS url(/asset.ext) syntax.
+              candidates.update(re.findall(r'''url\(\s*["']?(\/[^)"'?#\s]+(?:\?[^)"'#\s]*)?)["']?\s*\)''', data, flags=re.I))
+
+              for candidate in sorted(candidates):
+                  p = urllib.parse.urlsplit(candidate).path
+                  ext2 = os.path.splitext(p.lower())[1]
+                  if ext2 not in asset_ext:
+                      continue
+                  if clean == "/index.html":
+                      required_from_index.add(p)
+                  if p not in seen:
+                      if download(p, required=(p in required_from_index)) and ext2 in text_ext:
+                          queue.append(p)
+
+          # Known runtime image used by the Associates section; capture even if referenced dynamically.
+          download("/associate-acs.png", required=True)
+          PY
+
           test -s powertv/index.html
+          test -s powertv/assets/index-qo0EwjoB.js
+          test -s powertv/assets/index-C8bposip.css
+          test -s powertv/powertv-logo.jpg
+          test -s powertv/icon.svg
           test -s powertv/associate-acs.png
 
-          # The Associate Player is verified against the rendered runtime after deployment.
-          # Preserve the published files byte-for-byte here; do not rewrite or redesign them.
+          # Provenance + exact hashes + any remaining source-host dependencies.
           {
             echo "source_deploy_id=6aa07af3e223ccf2a59bb7c1"
             echo "source_deploy_url=$SOURCE_BASE"
             echo "captured_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
             echo "runtime_fingerprint_required=associate_player"
-            echo "source_file_count=2"
-            sha256sum powertv/index.html powertv/associate-acs.png
+            echo "captured_files=$(find powertv -type f ! -name SOURCE_MANIFEST.txt | wc -l | tr -d ' ')"
+            echo "--- sha256 ---"
+            find powertv -type f ! -name SOURCE_MANIFEST.txt -print0 | sort -z | xargs -0 sha256sum
+            echo "--- source_host_references ---"
+            grep -Rho "https://[^\"' )]*netlify[^\"' )]*" powertv --include='*.html' --include='*.js' --include='*.css' || true
           } > powertv/SOURCE_MANIFEST.txt
 
       - name: Commit captured source
@@ -48,10 +135,10 @@ jobs:
           set -euo pipefail
           git config user.name "PowerTV Migration Bot"
           git config user.email "actions@users.noreply.github.com"
-          git add powertv/index.html powertv/associate-acs.png powertv/SOURCE_MANIFEST.txt
+          git add -A powertv
           if git diff --cached --quiet; then
             echo "No source changes to commit."
             exit 0
           fi
-          git commit -m "feat(powertv): import published build with Associate Player"
+          git commit -m "feat(powertv): capture complete published asset graph"
           git push origin HEAD:feature/powertv-vercel-migration
