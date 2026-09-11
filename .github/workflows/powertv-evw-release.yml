@@ -1,0 +1,125 @@
+name: PowerTV EVW canonical release
+
+on:
+  push:
+    branches:
+      - feature/powertv-vercel-migration
+    paths:
+      - 'powertv/**'
+      - '.github/workflows/powertv-evw-release.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: powertv-evw-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      VERCEL_TOKEN_PRIMARY: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_TOKEN_ALT: ${{ secrets.VERCEL_ACCESS_TOKEN }}
+      TEAM_ID: team_6utpbVoh8NCKYO9Akftj1zBN
+      TARGET_PROJECT: powertv-vercel-release
+      PRODUCTION_ALIAS: https://powertv-vercel-release.vercel.app
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/powertv-vercel-migration
+
+      - name: Resolve Vercel credential
+        shell: bash
+        run: |
+          set -euo pipefail
+          TOKEN="${VERCEL_TOKEN_PRIMARY:-${VERCEL_TOKEN_ALT:-}}"
+          if [ -z "$TOKEN" ]; then
+            echo "PowerTV Vercel credential is unavailable"
+            exit 2
+          fi
+          echo "VERCEL_TOKEN=$TOKEN" >> "$GITHUB_ENV"
+
+      - name: Resolve exact canonical Vercel project
+        shell: bash
+        run: |
+          set -euo pipefail
+          resolve() {
+            local url="$1"
+            local out="$2"
+            local code
+            code=$(curl --silent --show-error -o "$out" -w '%{http_code}' -H "Authorization: Bearer $VERCEL_TOKEN" "$url")
+            [ "$code" = "200" ]
+          }
+
+          if resolve "https://api.vercel.com/v9/projects/$TARGET_PROJECT" /tmp/project.json; then
+            :
+          elif resolve "https://api.vercel.com/v9/projects/$TARGET_PROJECT?teamId=$TEAM_ID" /tmp/project.json; then
+            :
+          else
+            echo "Exact canonical Vercel project '$TARGET_PROJECT' not reachable with CI credential. Refusing substitute deployment."
+            echo "Projects visible without team:" >&2
+            curl --silent --show-error -H "Authorization: Bearer $VERCEL_TOKEN" "https://api.vercel.com/v9/projects?limit=100" | jq -r '.projects[]?.name' | grep -i powertv || true
+            echo "Projects visible in configured team:" >&2
+            curl --silent --show-error -H "Authorization: Bearer $VERCEL_TOKEN" "https://api.vercel.com/v9/projects?limit=100&teamId=$TEAM_ID" | jq -r '.projects[]?.name' | grep -i powertv || true
+            exit 3
+          fi
+
+          PROJECT_ID=$(jq -r '.id // empty' /tmp/project.json)
+          ORG_ID=$(jq -r '.accountId // empty' /tmp/project.json)
+          PROJECT_NAME=$(jq -r '.name // empty' /tmp/project.json)
+          test "$PROJECT_NAME" = "$TARGET_PROJECT"
+          test -n "$PROJECT_ID"
+          test -n "$ORG_ID"
+          echo "VERCEL_PROJECT_ID=$PROJECT_ID" >> "$GITHUB_ENV"
+          echo "VERCEL_ORG_ID=$ORG_ID" >> "$GITHUB_ENV"
+          echo "Resolved canonical PowerTV project: $PROJECT_NAME"
+
+      - name: Validate EVW growth payload before deploy
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s powertv/index.html
+          test -s powertv/evw-growth.js
+          test -s powertv/evw-growth.css
+          test -s powertv/east-vs-west/index.html
+          test -s powertv/robots.txt
+          test -s powertv/sitemap.xml
+          grep -q 'PowerLux Associates' powertv/assets/index-qo0EwjoB.js
+          grep -q 'UC3Dw8OYsWmZqrM1qBBZUMhQ' powertv/evw-growth.js
+          grep -q 'UCIEjGMfXbN4LFYSnV8qSgAQ' powertv/evw-growth.js
+          grep -q 'UCAH2krcji9uc3gYSqa33Zyw' powertv/evw-growth.js
+          grep -q 'live.evwsports.com' powertv/east-vs-west/index.html
+          grep -q 'application/ld+json' powertv/east-vs-west/index.html
+
+      - name: Link immutable source folder to exact project
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p powertv/.vercel
+          jq -n --arg projectId "$VERCEL_PROJECT_ID" --arg orgId "$VERCEL_ORG_ID" '{projectId:$projectId,orgId:$orgId}' > powertv/.vercel/project.json
+
+      - name: Deploy to canonical production project
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx --yes vercel@latest deploy --prod --yes --token="$VERCEL_TOKEN" --cwd powertv | tee /tmp/vercel-deploy.txt
+
+      - name: Verify public production alias and EVW surfaces
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 12); do
+            home=$(curl -L --silent --show-error --max-time 20 "$PRODUCTION_ALIAS/" || true)
+            evw=$(curl -L --silent --show-error --max-time 20 "$PRODUCTION_ALIAS/east-vs-west/" || true)
+            robots=$(curl -L --silent --show-error --max-time 20 "$PRODUCTION_ALIAS/robots.txt" || true)
+            sitemap=$(curl -L --silent --show-error --max-time 20 "$PRODUCTION_ALIAS/sitemap.xml" || true)
+            if grep -q 'evw-growth.js' <<<"$home" && grep -q 'East vs West 26 Live' <<<"$evw" && grep -q 'Sitemap:' <<<"$robots" && grep -q 'east-vs-west' <<<"$sitemap"; then
+              echo "POWERTV_EVW_RELEASE_VERIFIED=true"
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "Canonical alias did not expose the expected EVW release markers."
+          exit 4
