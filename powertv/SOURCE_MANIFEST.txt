@@ -1,7 +1,17 @@
 source_deploy_id=6aa07af3e223ccf2a59bb7c1
 source_deploy_url=https://6aa07af3e223ccf2a59bb7c1--powertv-network.netlify.app
-captured_at=2026-09-11T11:54:34Z
+captured_at=2026-09-11T11:55:49Z
 runtime_fingerprint_required=associate_player
-source_file_count=2
-467728bf4943139fbd53dbb48bdb5fa344a682c59f10782c2cfe3a4bb0062ee3  powertv/index.html
+captured_files=10
+--- sha256 ---
+07e7ea7e212871a0af554937f46f7a2bbeff9fd53d05a44656e2bd723e9a7a43  powertv/assets/index-C8bposip.css
+42a93109d283a20fafd1ca9a4887283d7fef1573cf4e536be42fabfa4ab5c349  powertv/assets/index-qo0EwjoB.js
 256568a89c99e378afb7eb3aa4b848f75c7fc8e6059afa7d07289606cf7d4c7f  powertv/associate-acs.png
+f384dedc76f1ab6cfce2c2c0a227edf24c7555b5652ae071a3e91a8890e3531a  powertv/associate-jens-avatar.jpg
+78da5925cf149a9e94c5861b92dc7454be5c554e504bd3e8b6e9f6947cfcd044  powertv/associate-laf-avatar.jpg
+3b834c00e57cdbe19d7bf06b23264ca5e426218919e17129de7f481f666f8f44  powertv/associate-uibff-in-avatar.jpg
+7c4d5c63b84c61a7aa1e4fedea55a71c35cd84d6f46b9a53adb6b6367f5d677a  powertv/associate-uibff.jpg
+1d7126fe285a5da1c770208ec480f98b2edc6028e91d3076fde051dcd12391fa  powertv/icon.svg
+467728bf4943139fbd53dbb48bdb5fa344a682c59f10782c2cfe3a4bb0062ee3  powertv/index.html
+6a8bf88cf2f13422eda9aea08f5e8bf51b9fe17a96a56f1d48a3797702414bc4  powertv/powertv-logo.jpg
+--- source_host_references ---
