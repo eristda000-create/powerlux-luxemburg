@@ -30,6 +30,12 @@ if ($startSource -notmatch '\$headBeforeRunner\s*-ne\s*\$headAfterRunner') { thr
 if ($startSource -notmatch '-not\s+\$Once') { throw 'Workshop self-relaunch must be disabled for one-shot verification runs.' }
 if ($startSource -notmatch 'Start-Process\s+-FilePath\s+\$pwsh\.Source') { throw 'Workshop start script is missing the bounded pwsh self-relaunch.' }
 
+$teamSource = Get-Content -LiteralPath (Join-Path $root 'scripts/central_local_agent_team.ps1') -Raw
+if ($teamSource -notmatch "hardware_14gb_v1") { throw 'Deep hardware-aware context compaction marker is missing.' }
+if ($teamSource -notmatch 'capsuleMaxChars\s*=\s*if\s*\(\$isDeepProfile\)\s*\{\s*3000\s*\}') { throw 'Deep context capsule must be capped at 3000 characters.' }
+if ($teamSource -notmatch 'max_context_chars.+4200') { throw 'Deep core context must be capped at 4200 characters after RAG compaction.' }
+if ($teamSource -notmatch 'TopK\s+\$topK') { throw 'Deep RAG must use the bounded dynamic TopK path.' }
+
 . (Join-Path $root 'scripts/central_context_capsule.ps1')
 . (Join-Path $root 'scripts/central_obsidian_rag_v2.ps1')
 . (Join-Path $root 'scripts/central_model_router.ps1')
@@ -62,7 +68,8 @@ function Invoke-RestMethod {
 $deepOut = Invoke-CentralOllamaAgent -OllamaUrl 'http://127.0.0.1:9' -Model 'qwen3.5:9b' -Prompt "Project: central`nMode: deep`nObjective: test" -MaxTokens 180 -ContextTokens 3328 -TimeoutSec 120
 if ($deepOut -ne 'FINAL_OK') { throw 'Deep Ollama override did not return the final response.' }
 if (-not [bool]$script:CapturedOllamaBody.think) { throw 'Deep qwen3.5:9b must use native Ollama thinking.' }
-if ([int]$script:CapturedOllamaBody.options.num_predict -lt 384) { throw 'Deep qwen3.5:9b thinking budget is too small to reliably emit a final answer.' }
+$deepPredict = [int]$script:CapturedOllamaBody.options.num_predict
+if ($deepPredict -lt 288 -or $deepPredict -gt 320) { throw "Deep qwen3.5:9b thinking budget must stay in the measured desktop-safe 288..320 range, got $deepPredict." }
 
 $standardOut = Invoke-CentralOllamaAgent -OllamaUrl 'http://127.0.0.1:9' -Model 'qwen3:4b-instruct' -Prompt "Project: central`nMode: analysis`nObjective: test" -MaxTokens 180 -ContextTokens 3328 -TimeoutSec 120
 if ($standardOut -ne 'FINAL_OK') { throw 'Standard Ollama override did not return the final response.' }
