@@ -30,6 +30,9 @@ if (Test-Path -LiteralPath $benchmarkHelper -PathType Leaf) { . $benchmarkHelper
 $modelPullHelper = Join-Path $PSScriptRoot 'central_model_pull.ps1'
 if (Test-Path -LiteralPath $modelPullHelper -PathType Leaf) { . $modelPullHelper }
 
+$vercelReleaseHelper = Join-Path $PSScriptRoot 'central_vercel_release.ps1'
+if (Test-Path -LiteralPath $vercelReleaseHelper -PathType Leaf) { . $vercelReleaseHelper }
+
 function Get-CentralPayloadStringSafe {
   param([object]$Payload,[string]$Name)
   try {
@@ -42,7 +45,7 @@ function Get-CentralPayloadStringSafe {
 function Get-CentralCapabilityMode {
   param([Parameter(Mandatory=$true)][object]$Payload)
   $mode = (Get-CentralPayloadStringSafe -Payload $Payload -Name 'mode').Trim().ToLowerInvariant()
-  if ($mode -in @('hardware_inventory','lab_sync','model_benchmark','model_pull')) { return $mode }
+  if ($mode -in @('hardware_inventory','lab_sync','model_benchmark','model_pull','vercel_probe','powertv_vercel_deploy')) { return $mode }
   return ''
 }
 
@@ -51,7 +54,8 @@ function Invoke-CentralDirectCapability {
     [Parameter(Mandatory=$true)][object]$Payload,
     [Parameter(Mandatory=$true)][string]$Mode,
     [string]$ObsidianVault,
-    [Parameter(Mandatory=$true)][string]$OllamaUrl
+    [Parameter(Mandatory=$true)][string]$OllamaUrl,
+    [Parameter(Mandatory=$true)][string]$WorkDir
   )
 
   switch ($Mode) {
@@ -81,6 +85,16 @@ function Invoke-CentralDirectCapability {
       $capResult = Start-CentralOllamaModelPull -Model $modelToPull -OllamaUrl $OllamaUrl
       return [ordered]@{ action='local_agent_team'; performance_profile='powershell_capability_v2'; capability_dispatch='direct_pre_reasoning'; mode=$Mode; result=$capResult; access=@{ arbitrary_shell=$false; capability='allowlisted_nonblocking_model_pull' } }
     }
+    'vercel_probe' {
+      if ($null -eq (Get-Command Get-CentralPowerTvVercelProbe -ErrorAction SilentlyContinue)) { throw 'Bounded PowerTV Vercel probe helper is unavailable.' }
+      $capResult = Get-CentralPowerTvVercelProbe -WorkDir $WorkDir
+      return [ordered]@{ action='local_agent_team'; performance_profile='powershell_capability_v2'; capability_dispatch='direct_pre_reasoning'; mode=$Mode; result=$capResult; access=@{ arbitrary_shell=$false; capability='read_only_exact_powertv_vercel_project_probe' } }
+    }
+    'powertv_vercel_deploy' {
+      if ($null -eq (Get-Command Publish-CentralPowerTvVercelRelease -ErrorAction SilentlyContinue)) { throw 'Bounded PowerTV Vercel release helper is unavailable.' }
+      $capResult = Publish-CentralPowerTvVercelRelease -WorkDir $WorkDir
+      return [ordered]@{ action='local_agent_team'; performance_profile='powershell_capability_v2'; capability_dispatch='direct_pre_reasoning'; mode=$Mode; result=$capResult; access=@{ arbitrary_shell=$false; capability='exact_project_powertv_production_deploy_with_post_verify' } }
+    }
     default { throw "Unsupported direct capability mode: $Mode" }
   }
 }
@@ -99,7 +113,7 @@ function Invoke-CentralLocalAgentTeam {
   # analyst/guardian reasoning, or local autonomy. They must never consume an Ollama reasoning timeout.
   $capabilityMode = Get-CentralCapabilityMode -Payload $Payload
   if (-not [string]::IsNullOrWhiteSpace($capabilityMode)) {
-    return Invoke-CentralDirectCapability -Payload $Payload -Mode $capabilityMode -ObsidianVault $ObsidianVault -OllamaUrl $OllamaUrl
+    return Invoke-CentralDirectCapability -Payload $Payload -Mode $capabilityMode -ObsidianVault $ObsidianVault -OllamaUrl $OllamaUrl -WorkDir $WorkDir
   }
 
   $effectivePayload = $Payload
