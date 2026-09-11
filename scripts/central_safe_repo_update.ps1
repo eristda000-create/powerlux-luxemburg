@@ -54,17 +54,50 @@ function Test-CentralGitTreeCleanOrRefreshable {
     return [ordered]@{ clean=$false; refreshed=$false; status=$dirty; reason='untracked_files' }
   }
 
-  & git -C $WorkDir diff --quiet --exit-code -- 2>$null
-  $worktreeDiff = $LASTEXITCODE
-  & git -C $WorkDir diff --cached --quiet --exit-code -- 2>$null
-  $cachedDiff = $LASTEXITCODE
+  # First try a non-destructive index metadata refresh.
+  & git -C $WorkDir update-index --refresh 2>$null | Out-Null
+  $afterRefresh = (& git -C $WorkDir status --porcelain=v1 --untracked-files=all 2>&1 | Out-String).Trim()
+  if ($LASTEXITCODE -eq 0 -and [string]::IsNullOrWhiteSpace($afterRefresh)) {
+    return [ordered]@{ clean=$true; refreshed=$true; status=''; prior_status=$dirty; reason='stat_only_index_refresh' }
+  }
 
-  if ($worktreeDiff -eq 0 -and $cachedDiff -eq 0) {
-    & git -C $WorkDir update-index --refresh 2>$null | Out-Null
-    $refreshExit = $LASTEXITCODE
-    $after = (& git -C $WorkDir status --porcelain=v1 --untracked-files=all 2>&1 | Out-String).Trim()
-    if ($refreshExit -eq 0 -and [string]::IsNullOrWhiteSpace($after)) {
-      return [ordered]@{ clean=$true; refreshed=$true; status=''; prior_status=$dirty; reason='stat_only_index_refresh' }
+  # Windows/Obsidian can leave tracked Markdown files marked modified even when Git can
+  # produce no actual worktree or staged diff. Only in that narrowly proven case may
+  # CENTRAL restore those exact knowledge/*.md worktree paths from HEAD.
+  $worktreeNames = @((& git -C $WorkDir diff --name-only -- 2>$null | ForEach-Object { ([string]$_).Trim() } | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }))
+  $worktreeNamesExit = $LASTEXITCODE
+  $cachedNames = @((& git -C $WorkDir diff --cached --name-only -- 2>$null | ForEach-Object { ([string]$_).Trim() } | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }))
+  $cachedNamesExit = $LASTEXITCODE
+
+  if ($worktreeNamesExit -eq 0 -and $cachedNamesExit -eq 0 -and $worktreeNames.Count -eq 0 -and $cachedNames.Count -eq 0) {
+    $restorePaths = [System.Collections.Generic.List[string]]::new()
+    $restoreSafe = $true
+    foreach ($line in $lines) {
+      if ($line.Length -lt 4) { $restoreSafe=$false; break }
+      $pathText = $line.Substring(3).Trim()
+      if ([string]::IsNullOrWhiteSpace($pathText) -or $pathText.Contains(' -> ')) { $restoreSafe=$false; break }
+      $norm = $pathText.Replace('\\','/').TrimStart('/')
+      if (-not ($norm.StartsWith('knowledge/',[StringComparison]::OrdinalIgnoreCase) -and $norm.EndsWith('.md',[StringComparison]::OrdinalIgnoreCase))) {
+        $restoreSafe=$false; break
+      }
+      $restorePaths.Add($pathText)
+    }
+
+    if ($restoreSafe -and $restorePaths.Count -gt 0) {
+      $restoreArgs = @('-C',$WorkDir,'restore','--worktree','--source=HEAD','--') + @($restorePaths)
+      & git @restoreArgs 2>$null | Out-Null
+      $restoreExit = $LASTEXITCODE
+      $afterRestore = (& git -C $WorkDir status --porcelain=v1 --untracked-files=all 2>&1 | Out-String).Trim()
+      if ($restoreExit -eq 0 -and [string]::IsNullOrWhiteSpace($afterRestore)) {
+        return [ordered]@{
+          clean=$true
+          refreshed=$true
+          status=''
+          prior_status=$dirty
+          reason='empty_diff_knowledge_worktree_restore'
+          restored_paths=@($restorePaths)
+        }
+      }
     }
   }
 
