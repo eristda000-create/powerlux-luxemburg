@@ -140,3 +140,5 @@ function Invoke-CentralOllamaAgent {
 
   return $final
 }
+
+# Runtime refresh marker: reload the bounded PowerTV Vercel helper in the persistent CENTRAL workshop.
