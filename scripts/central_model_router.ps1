@@ -87,7 +87,9 @@ function Get-CentralRecommendedProfile {
 
 # Override the core Ollama caller after central_local_agent_team_core.ps1 has been dot-sourced.
 # This keeps routine work low-latency while giving only explicit deep Qwen3.5 9B runs
-# native Ollama thinking with enough generation budget to emit a final answer.
+# native Ollama thinking. The deep budget is intentionally bounded for the verified
+# 13.94 GB / 4-core desktop so thinking still leaves room for a final answer inside
+# the runtime window.
 function Invoke-CentralOllamaAgent {
   param(
     [Parameter(Mandatory=$true)][string]$OllamaUrl,
@@ -108,7 +110,8 @@ function Invoke-CentralOllamaAgent {
   $useThinking = ($normalizedModel -like 'qwen3.5:9b*') -and ($deepModes -contains $promptMode)
 
   $effectiveMaxTokens = if ($useThinking) {
-    [Math]::Max(384,[Math]::Min(640,($MaxTokens * 2)))
+    $scaled = [int][Math]::Ceiling($MaxTokens * 1.6)
+    [Math]::Max(288,[Math]::Min(320,$scaled))
   } else {
     [Math]::Max(48,[Math]::Min(512,$MaxTokens))
   }
