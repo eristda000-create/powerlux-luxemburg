@@ -14,21 +14,21 @@ permissions:
 jobs:
   verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
     env:
       BASE: https://powertv-evw-live.vercel.app
-      CDN: https://cdn.jsdelivr.net/gh/eristda000-create/powerlux-luxemburg@b6dcd9b591e19771b8193d7a5b74de04e8002523/powertv
+      AUTHENTIC_CDN: https://cdn.jsdelivr.net/gh/eristda000-create/powerlux-luxemburg@8ca1846d78ea697c17b5f9d5f04ef13085c7a288/powertv
     steps:
-      - name: Wait for repaired production route
+      - name: Wait for executive production release
         shell: bash
         run: |
           set -euo pipefail
           ok=0
-          for attempt in $(seq 1 30); do
-            code=$(curl -sS -o /tmp/evw -w '%{http_code}' --max-time 20 "$BASE/east-vs-west/" || true)
-            if [ "$code" = "200" ] && grep -q '/#evw-growth-hub' /tmp/evw && grep -q 'location.replace' /tmp/evw; then
+          for attempt in $(seq 1 36); do
+            code=$(curl -L -sS -o /tmp/home -w '%{http_code}' --max-time 20 "$BASE/?release_probe=$attempt" || true)
+            if [ "$code" = "200" ] && grep -q '/ptv-executive.css' /tmp/home && grep -q '/ptv-executive.js' /tmp/home && grep -q 'EVW26 Command Center' /tmp/home; then
               ok=1
-              echo "Integrated EVW route ready on attempt $attempt"
+              echo "Executive production release ready on attempt $attempt"
               break
             fi
             echo "attempt=$attempt http=$code"
@@ -36,28 +36,76 @@ jobs:
           done
           test "$ok" = "1"
 
-      - name: Verify homepage is still authentic PowerTV
+      - name: Verify production transport and authentic runtime
         shell: bash
         run: |
           set -euo pipefail
           curl -LfsS --max-time 20 "$BASE/" -o /tmp/home
-          grep -q 'https://powertv-evw-live.vercel.app/' /tmp/home
-          grep -q 'index-qo0EwjoB.js' /tmp/home
-          grep -q 'evw-growth.js' /tmp/home
-          grep -q 'East vs West 26' /tmp/home
-          curl -LfsS --max-time 30 "$CDN/assets/index-qo0EwjoB.js" -o /tmp/app.js
+          curl -LfsS --max-time 20 "$BASE/ptv-executive.js" -o /tmp/executive.js
+          curl -LfsS --max-time 20 "$BASE/ptv-executive.css" -o /tmp/executive.css
+          curl -LfsS --max-time 30 "$AUTHENTIC_CDN/assets/index-qo0EwjoB.js" -o /tmp/app.js
+          grep -q 'powertv-authentic-runtime' /tmp/home
+          grep -q '8ca1846d78ea697c17b5f9d5f04ef13085c7a288' /tmp/home
+          grep -q 'ptv-command-center' /tmp/executive.js
+          grep -q 'EVW26 COMMAND CENTER' /tmp/executive.js
+          grep -q 'Ryan Bowen' /tmp/executive.js
+          grep -q 'Voice of Armwrestling' /tmp/executive.js
+          grep -q 'LEGACY_ASSET_CDN' /tmp/executive.js
+          grep -q '#ptv-command-center' /tmp/executive.css
           grep -q 'PowerLux Associates' /tmp/app.js
 
-      - name: Verify SEO no longer promotes standalone EVW page
+      - name: Verify integrated EVW route and SEO
         shell: bash
         run: |
           set -euo pipefail
+          curl -LfsS --max-time 20 "$BASE/east-vs-west/" -o /tmp/evw
           curl -LfsS --max-time 20 "$BASE/robots.txt" -o /tmp/robots
           curl -LfsS --max-time 20 "$BASE/sitemap.xml" -o /tmp/sitemap
+          grep -q '/#ptv-command-center' /tmp/evw
+          grep -q 'location.replace' /tmp/evw
+          grep -q 'live.evwsports.com' /tmp/evw
           grep -q 'Sitemap: https://powertv-evw-live.vercel.app/sitemap.xml' /tmp/robots
           grep -q '<loc>https://powertv-evw-live.vercel.app/</loc>' /tmp/sitemap
-          if grep -q 'east-vs-west' /tmp/sitemap; then
-            echo 'Standalone EVW page is still in sitemap' >&2
-            exit 1
-          fi
-          echo 'POWERTV_INTEGRATED_EVW_SMOKE=PASS'
+          grep -q 'east-vs-west' /tmp/sitemap
+
+      - name: Install browser for rendered production check
+        shell: bash
+        run: |
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps chromium
+
+      - name: Verify rendered mobile hierarchy
+        shell: bash
+        run: |
+          node <<'NODE'
+          const { chromium } = require('playwright');
+          (async () => {
+            const browser = await chromium.launch({headless:true});
+            const page = await browser.newPage({viewport:{width:390,height:844}, deviceScaleFactor:1});
+            const errors = [];
+            page.on('pageerror', err => errors.push(String(err)));
+            await page.goto(process.env.BASE + '/?render_probe=executive', {waitUntil:'domcontentloaded', timeout:60000});
+            await page.waitForSelector('#ptv-command-center', {state:'visible', timeout:45000});
+            await page.waitForTimeout(2500);
+            const commandText = await page.locator('#ptv-command-center').innerText();
+            if (!commandText.includes('EVW26 COMMAND CENTER')) throw new Error('Command center marker missing');
+            if (!commandText.includes('Choose your feed')) throw new Error('Live discovery rail missing');
+            if (!commandText.includes('What matters now')) throw new Error('Executive briefing missing');
+            if (await page.locator('.evw-sticky-link:visible').count()) throw new Error('Old floating EVW button is still visible');
+            const commandBox = await page.locator('#ptv-command-center').boundingBox();
+            const replay = page.getByText('Sportvideos & Wettkämpfe', {exact:true}).first();
+            if (await replay.count()) {
+              const replayBox = await replay.boundingBox();
+              if (commandBox && replayBox && commandBox.y >= replayBox.y) throw new Error('Legacy replay still appears before the command center');
+            }
+            if (!await page.getByText('MY PLX', {exact:true}).count()) throw new Error('MY PLX navigation disappeared');
+            if (!await page.getByText('PowerLux Associates', {exact:true}).count()) throw new Error('PowerLux Associates disappeared');
+            await page.screenshot({path:'powertv-mobile-executive.png', fullPage:true});
+            console.log('POWERTV_RENDERED_EXECUTIVE_SMOKE=PASS');
+            if (errors.length) console.log('Non-fatal page errors:', errors.slice(0,5));
+            await browser.close();
+          })().catch(err => { console.error(err); process.exit(1); });
+          NODE
+
+      - name: Complete
+        run: echo 'POWERTV_PUBLIC_EXECUTIVE_RELEASE=PASS'
