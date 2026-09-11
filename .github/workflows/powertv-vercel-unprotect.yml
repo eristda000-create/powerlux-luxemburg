@@ -1,0 +1,64 @@
+name: PowerTV Vercel public-access gate
+
+on:
+  push:
+    branches:
+      - feature/powertv-vercel-migration
+    paths:
+      - .github/workflows/powertv-vercel-unprotect.yml
+
+permissions:
+  contents: read
+
+jobs:
+  unprotect:
+    runs-on: ubuntu-latest
+    env:
+      VERCEL_TOKEN_PRIMARY: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_TOKEN_ALT: ${{ secrets.VERCEL_ACCESS_TOKEN }}
+      TEAM_ID: team_6utpbVoh8NCKYO9Akftj1zBN
+      PROJECT_NAME: powertv-current-2026
+      PUBLIC_ALIAS: https://powertv-current-2026-eristda000-2732s-projects.vercel.app
+    steps:
+      - name: Resolve CI credential without exposing it
+        shell: bash
+        run: |
+          set -euo pipefail
+          TOKEN="${VERCEL_TOKEN_PRIMARY:-${VERCEL_TOKEN_ALT:-}}"
+          if [ -z "$TOKEN" ]; then
+            echo "VERCEL_CI_TOKEN_AVAILABLE=false"
+            exit 2
+          fi
+          echo "VERCEL_CI_TOKEN_AVAILABLE=true"
+          echo "VERCEL_TOKEN=$TOKEN" >> "$GITHUB_ENV"
+
+      - name: Disable Vercel Authentication for PowerTV
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail-with-body --silent --show-error \
+            -X PATCH \
+            -H "Authorization: Bearer $VERCEL_TOKEN" \
+            -H "Content-Type: application/json" \
+            "https://api.vercel.com/v9/projects/${PROJECT_NAME}?teamId=${TEAM_ID}" \
+            --data '{"ssoProtection":null}' \
+            | jq '{id,name,ssoProtection,updatedAt}'
+
+      - name: Verify project protection is disabled
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error \
+            -H "Authorization: Bearer $VERCEL_TOKEN" \
+            "https://api.vercel.com/v9/projects/${PROJECT_NAME}?teamId=${TEAM_ID}" \
+            | jq -e '{id,name,ssoProtection} | select(.ssoProtection == null)'
+
+      - name: Probe public alias
+        shell: bash
+        run: |
+          set -euo pipefail
+          code=$(curl -L --silent --show-error -o /tmp/powertv.html -w '%{http_code}' "$PUBLIC_ALIAS/")
+          echo "PUBLIC_HTTP_STATUS=$code"
+          test "$code" = "200"
+          ! grep -qi "Protected Deployment" /tmp/powertv.html
+          grep -q "PowerTV — Sport jenseits des Mainstreams" /tmp/powertv.html
