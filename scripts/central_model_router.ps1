@@ -44,7 +44,7 @@ function Resolve-CentralModelProfile {
   # Hardware-aware default policy for the verified CENTRAL node (13.94 GB RAM):
   # - qwen3:4b-instruct stays the low-latency default for routine work.
   # - qwen3.5:9b is reserved for explicit deep/complex work.
-  # - qwen3:1.7b remains only a last-resort fallback after a 0/3 local benchmark result.
+  # - qwen3:1.7b remains only a last-resort fallback.
   # Larger models require an explicit environment override after a new hardware review.
   $candidates = switch ($profileName) {
     'fast' { @($envOverride,'qwen3:4b-instruct','qwen3.5:4b','qwen3:1.7b') }
@@ -83,4 +83,57 @@ function Get-CentralRecommendedProfile {
   if ($mode -in @('critic','qa','verification','guard')) { return 'critic' }
   if ($mode -in @('fast','extract','classify','micro')) { return 'fast' }
   return 'standard'
+}
+
+# Override the core Ollama caller after central_local_agent_team_core.ps1 has been dot-sourced.
+# This keeps routine work low-latency while giving only explicit deep Qwen3.5 9B runs
+# native Ollama thinking with enough generation budget to emit a final answer.
+function Invoke-CentralOllamaAgent {
+  param(
+    [Parameter(Mandatory=$true)][string]$OllamaUrl,
+    [Parameter(Mandatory=$true)][string]$Model,
+    [Parameter(Mandatory=$true)][string]$Prompt,
+    [int]$MaxTokens = 220,
+    [int]$ContextTokens = 4096,
+    [int]$TimeoutSec = 150
+  )
+
+  $promptMode = ''
+  if ($Prompt -match '(?im)^Mode:\s*([a-z0-9_\-]+)\s*$') {
+    $promptMode = ([string]$Matches[1]).Trim().ToLowerInvariant()
+  }
+
+  $deepModes = @('deep','architecture','strategy','research_synthesis','complex_analysis')
+  $normalizedModel = ([string]$Model).Trim().ToLowerInvariant()
+  $useThinking = ($normalizedModel -like 'qwen3.5:9b*') -and ($deepModes -contains $promptMode)
+
+  $effectiveMaxTokens = if ($useThinking) {
+    [Math]::Max(384,[Math]::Min(640,($MaxTokens * 2)))
+  } else {
+    [Math]::Max(48,[Math]::Min(512,$MaxTokens))
+  }
+  $effectiveTimeoutSec = if ($useThinking) { [Math]::Max(300,$TimeoutSec) } else { $TimeoutSec }
+  $temperature = if ($useThinking) { 0.2 } else { 0.15 }
+
+  $body = @{
+    model = $Model
+    prompt = $Prompt
+    stream = $false
+    think = [bool]$useThinking
+    keep_alive = '10m'
+    options = @{
+      temperature = $temperature
+      num_predict = $effectiveMaxTokens
+      num_ctx = [Math]::Max(2048,[Math]::Min(8192,$ContextTokens))
+    }
+  } | ConvertTo-Json -Depth 10 -Compress
+
+  $response = Invoke-RestMethod -Method Post -Uri "$($OllamaUrl.TrimEnd('/'))/api/generate" -ContentType 'application/json' -Body $body -TimeoutSec $effectiveTimeoutSec
+  $final = ([string]$response.response).Trim()
+
+  if ($useThinking -and [string]::IsNullOrWhiteSpace($final)) {
+    throw 'Deep Qwen thinking completed without a final response. The response budget was exhausted before finalization.'
+  }
+
+  return $final
 }
