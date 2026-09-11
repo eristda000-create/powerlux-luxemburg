@@ -1,0 +1,59 @@
+name: PowerTV published-build capture
+
+on:
+  push:
+    branches:
+      - feature/powertv-vercel-migration
+    paths:
+      - .github/workflows/powertv-vercel-capture.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  capture:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout migration branch
+        uses: actions/checkout@v4
+        with:
+          ref: feature/powertv-vercel-migration
+
+      - name: Capture immutable published PowerTV build
+        shell: bash
+        run: |
+          set -euo pipefail
+          SOURCE_BASE="https://6aa07af3e223ccf2a59bb7c1--powertv-network.netlify.app"
+          mkdir -p powertv
+          curl --fail --silent --show-error --location "$SOURCE_BASE/index.html" -o powertv/index.html
+          curl --fail --silent --show-error --location "$SOURCE_BASE/associate-acs.png" -o powertv/associate-acs.png
+          test -s powertv/index.html
+          test -s powertv/associate-acs.png
+
+          # Acceptance fingerprint: this must be the current build with the Associates player.
+          grep -Fq "PowerLux Associates" powertv/index.html
+          grep -Fq "KANALVORSTELLUNG" powertv/index.html
+
+          # Record immutable provenance and checksums. This file is metadata only,
+          # not part of the page UI.
+          {
+            echo "source_deploy_id=6aa07af3e223ccf2a59bb7c1"
+            echo "source_deploy_url=$SOURCE_BASE"
+            echo "captured_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            sha256sum powertv/index.html powertv/associate-acs.png
+          } > powertv/SOURCE_MANIFEST.txt
+
+      - name: Commit captured source
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "PowerTV Migration Bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add powertv/index.html powertv/associate-acs.png powertv/SOURCE_MANIFEST.txt
+          if git diff --cached --quiet; then
+            echo "No source changes to commit."
+            exit 0
+          fi
+          git commit -m "feat(powertv): import published build with Associate Player"
+          git push origin HEAD:feature/powertv-vercel-migration
