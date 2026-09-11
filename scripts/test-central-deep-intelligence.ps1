@@ -23,6 +23,11 @@ foreach ($rel in $files) {
 
 . (Join-Path $root 'scripts/central_context_capsule.ps1')
 . (Join-Path $root 'scripts/central_obsidian_rag_v2.ps1')
+. (Join-Path $root 'scripts/central_model_router.ps1')
+
+if (Test-CentralGenerativeModelName 'nomic-embed-text:latest') { throw 'Embedding model must not be accepted as a generative reasoning model.' }
+if (Test-CentralGenerativeModelName 'mxbai-embed-large:latest') { throw 'Embedding model must not be accepted as a generative reasoning model.' }
+if (-not (Test-CentralGenerativeModelName 'qwen3:4b-instruct')) { throw 'Known Qwen generative model was incorrectly filtered.' }
 
 $tmp = Join-Path ([IO.Path]::GetTempPath()) ('central-deep-intelligence-' + [guid]::NewGuid().ToString('N'))
 try {

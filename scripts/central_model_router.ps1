@@ -1,5 +1,16 @@
 Set-StrictMode -Version Latest
 
+function Test-CentralGenerativeModelName {
+  param([string]$Name)
+  if ([string]::IsNullOrWhiteSpace($Name)) { return $false }
+  $n = $Name.Trim().ToLowerInvariant()
+  $blocked = @('embed','embedding','nomic-embed','mxbai-embed','all-minilm','snowflake-arctic-embed','bge-m3','bge-small','bge-large')
+  foreach ($needle in $blocked) {
+    if ($n.Contains($needle)) { return $false }
+  }
+  return $true
+}
+
 function Get-CentralOllamaModelNames {
   param([Parameter(Mandatory=$true)][string]$OllamaUrl)
   try {
@@ -21,6 +32,8 @@ function Resolve-CentralModelProfile {
   if ($profileName -notin @('fast','standard','deep','critic')) { $profileName = 'standard' }
 
   $models = @(Get-CentralOllamaModelNames -OllamaUrl $OllamaUrl)
+  $generativeModels = @($models | Where-Object { Test-CentralGenerativeModelName $_ })
+
   $envOverride = switch ($profileName) {
     'fast' { [Environment]::GetEnvironmentVariable('CENTRAL_OLLAMA_FAST_MODEL') }
     'deep' { [Environment]::GetEnvironmentVariable('CENTRAL_OLLAMA_DEEP_MODEL') }
@@ -36,19 +49,20 @@ function Resolve-CentralModelProfile {
   }
   $candidates += @($ConfiguredModel,$DetectedModel)
 
-  foreach ($candidate in ($candidates | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -Unique)) {
-    $match = $models | Where-Object { $_ -eq $candidate -or $_ -like "$candidate*" } | Select-Object -First 1
+  foreach ($candidate in ($candidates | Where-Object { -not [string]::IsNullOrWhiteSpace($_) -and (Test-CentralGenerativeModelName $_) } | Select-Object -Unique)) {
+    $match = $generativeModels | Where-Object { $_ -eq $candidate -or $_ -like "$candidate*" } | Select-Object -First 1
     if (-not [string]::IsNullOrWhiteSpace($match)) {
       return [ordered]@{
         profile = $profileName
         model = [string]$match
         installed_models = $models
+        generative_models = $generativeModels
         fallback_used = ([string]$match -ne [string]$candidates[0])
       }
     }
   }
 
-  throw "No installed Ollama model could satisfy profile '$profileName'."
+  throw "No installed generative Ollama model could satisfy profile '$profileName'. Embedding-only models are excluded from reasoning routes."
 }
 
 function Get-CentralRecommendedProfile {
