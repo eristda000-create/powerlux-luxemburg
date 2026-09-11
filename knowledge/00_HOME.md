@@ -3,7 +3,7 @@ type: central-home
 status: canonical
 owner: human
 review_cycle: continuous
-updated: 2026-09-10
+updated: 2026-09-11
 ---
 
 # CENTRAL — Management Home
@@ -31,9 +31,18 @@ CENTRAL exists to turn verified information into faster, safer execution across 
 
 ## Knowledge rule
 
-Every substantive project task must start from the canonical project `STATE.md` and end by deciding whether durable knowledge changed. Durable changes are updated through a normal reviewed Git change so Obsidian and Git history stay aligned.
+Every substantive project task must start from the canonical project `STATE.md`, `[[AI_INSTRUCTIONS]]` and relevant semantically retrieved canonical notes, then end by deciding whether durable knowledge changed. Durable changes are updated through a normal reviewed Git change so Obsidian and Git history stay aligned.
 
 Never promote an unverified model statement into canonical knowledge.
+
+## AI / memory layer
+
+- [[AI_INSTRUCTIONS]] — mandatory behavior, evidence and write rules for all agents.
+- [[SYSTEM/AI_STACK]] — architecture for skills, RAG, REST/MCP and optional Obsidian plugins.
+- [[PROMPTS/FABRIC_CURATED]] — small curated pattern registry; no prompt dumping.
+- [[INBOX/README]] — quarantine rules for unverified AI/research material.
+
+Automatic semantic retrieval is limited to canonical `CENTRAL/` knowledge by default. Inbox, Drafts and Archive are excluded from automatic RAG.
 
 ## Current project pages
 
@@ -64,3 +73,5 @@ For every project, answer in this order:
 - no unverified claims copied from AI output
 - no open-ended work without a value stream, owner and next action
 - no destructive Git shortcuts to resolve routine drift
+- no vault-wide autonomous write authority
+- no secrets/tokens/credentials in Obsidian knowledge
