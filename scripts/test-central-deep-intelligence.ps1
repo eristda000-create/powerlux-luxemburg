@@ -10,7 +10,8 @@ $files = @(
   'scripts/central_model_pull.ps1',
   'scripts/central_context_capsule.ps1',
   'scripts/central_obsidian_rag_v2.ps1',
-  'scripts/central_local_agent_team.ps1'
+  'scripts/central_local_agent_team.ps1',
+  'scripts/start-central-workshop.ps1'
 )
 
 foreach ($rel in $files) {
@@ -20,6 +21,14 @@ foreach ($rel in $files) {
   [void][System.Management.Automation.Language.Parser]::ParseFile($path,[ref]$tokens,[ref]$errors)
   if ($errors.Count -gt 0) { throw "PowerShell parse errors in ${rel}: $($errors[0].Message)" }
 }
+
+$startSource = Get-Content -LiteralPath (Join-Path $root 'scripts/start-central-workshop.ps1') -Raw
+if ($startSource -notmatch 'function Get-CentralRepoHead') { throw 'Workshop start script is missing bounded repo-head restart detection.' }
+if ($startSource -notmatch '\$headBeforeRunner\s*=\s*Get-CentralRepoHead') { throw 'Workshop start script does not capture HEAD before the bridge runner.' }
+if ($startSource -notmatch '\$headAfterRunner\s*=\s*Get-CentralRepoHead') { throw 'Workshop start script does not capture HEAD after the bridge runner.' }
+if ($startSource -notmatch '\$headBeforeRunner\s*-ne\s*\$headAfterRunner') { throw 'Workshop start script does not gate self-relaunch on an actual repo HEAD change.' }
+if ($startSource -notmatch '-not\s+\$Once') { throw 'Workshop self-relaunch must be disabled for one-shot verification runs.' }
+if ($startSource -notmatch 'Start-Process\s+-FilePath\s+\$pwsh\.Source') { throw 'Workshop start script is missing the bounded pwsh self-relaunch.' }
 
 . (Join-Path $root 'scripts/central_context_capsule.ps1')
 . (Join-Path $root 'scripts/central_obsidian_rag_v2.ps1')
