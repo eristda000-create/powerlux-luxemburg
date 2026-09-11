@@ -14,7 +14,7 @@ function Invoke-CentralModelBenchmark {
   param(
     [Parameter(Mandatory=$true)][string]$OllamaUrl,
     [string[]]$Models,
-    [int]$TimeoutSec = 180
+    [int]$TimeoutSec = 240
   )
 
   if ($null -eq $Models -or $Models.Count -eq 0) {
@@ -24,10 +24,49 @@ function Invoke-CentralModelBenchmark {
     } catch { throw "Cannot list Ollama models: $($_.Exception.Message)" }
   }
 
+  # Benchmark v3 separates deterministic non-thinking behavior from one explicit thinking task.
+  # Ollama exposes `think` as an API field; relying on /no_think in prompt text alone can produce false failures.
   $tasks = @(
-    [pscustomobject][ordered]@{ key='precision'; prompt='/no_think\nReturn exactly this token and nothing else: CENTRAL_OK'; expected='CENTRAL_OK' },
-    [pscustomobject][ordered]@{ key='reasoning'; prompt='/no_think\nA system has 14 records, 13 published, and 5 published upcoming. How many published records are not upcoming? Return only the integer.'; expected='8' },
-    [pscustomobject][ordered]@{ key='evidence'; prompt='/no_think\nGiven: FACT: source A says status=active. HYPOTHESIS: source B guesses status=blocked. Which status is supported? Return only active or blocked.'; expected='active' }
+    [pscustomobject][ordered]@{
+      key='precision';
+      prompt='Return exactly this token and nothing else: CENTRAL_OK';
+      expected='CENTRAL_OK';
+      think=$false;
+      num_predict=16;
+      temperature=0.0;
+      top_p=1.0;
+      top_k=20
+    },
+    [pscustomobject][ordered]@{
+      key='reasoning';
+      prompt='A system has 14 records, 13 published, and 5 published upcoming. How many published records are not upcoming? Return only the integer.';
+      expected='8';
+      think=$false;
+      num_predict=32;
+      temperature=0.0;
+      top_p=1.0;
+      top_k=20
+    },
+    [pscustomobject][ordered]@{
+      key='evidence';
+      prompt='Given: FACT: source A says status=active. HYPOTHESIS: source B guesses status=blocked. Which status is supported? Return only active or blocked.';
+      expected='active';
+      think=$false;
+      num_predict=32;
+      temperature=0.0;
+      top_p=1.0;
+      top_k=20
+    },
+    [pscustomobject][ordered]@{
+      key='deep_reasoning';
+      prompt='Three initiatives have scores defined as 2*value + speed - 2*risk. A: value=8 speed=4 risk=2. B: value=6 speed=5 risk=1. C: value=9 speed=2 risk=4. Which initiative has the highest score? Return only A, B, or C in the final answer.';
+      expected='A';
+      think=$true;
+      num_predict=160;
+      temperature=0.6;
+      top_p=0.95;
+      top_k=20
+    }
   )
 
   $results = [System.Collections.Generic.List[object]]::new()
@@ -37,6 +76,7 @@ function Invoke-CentralModelBenchmark {
       $sw = [Diagnostics.Stopwatch]::StartNew()
       $ok = $false
       $responseText = ''
+      $thinkingText = ''
       $errorText = $null
       $evalCount = $null
       $evalDuration = $null
@@ -45,11 +85,19 @@ function Invoke-CentralModelBenchmark {
           model = $model
           prompt = $task.prompt
           stream = $false
+          think = [bool]$task.think
           keep_alive = '10m'
-          options = @{ temperature=0; num_predict=80; num_ctx=4096 }
+          options = @{
+            temperature = [double]$task.temperature
+            top_p = [double]$task.top_p
+            top_k = [int]$task.top_k
+            num_predict = [int]$task.num_predict
+            num_ctx = 4096
+          }
         } | ConvertTo-Json -Depth 8 -Compress
         $r = Invoke-RestMethod -Method Post -Uri "$($OllamaUrl.TrimEnd('/'))/api/generate" -ContentType 'application/json' -Body $body -TimeoutSec $TimeoutSec
         $responseText = ([string]$r.response).Trim()
+        if ($null -ne $r.PSObject.Properties['thinking']) { $thinkingText = ([string]$r.thinking).Trim() }
         $ok = ($responseText -eq [string]$task.expected)
         $evalCount = $r.eval_count
         $evalDuration = $r.eval_duration
@@ -57,9 +105,12 @@ function Invoke-CentralModelBenchmark {
       $sw.Stop()
       $taskResults.Add([pscustomobject][ordered]@{
         task = $task.key
+        think = [bool]$task.think
         passed = $ok
+        expected = [string]$task.expected
         elapsed_ms = [long]$sw.ElapsedMilliseconds
-        response = if ($responseText.Length -gt 160) { $responseText.Substring(0,160) } else { $responseText }
+        response = if ($responseText.Length -gt 200) { $responseText.Substring(0,200) } else { $responseText }
+        thinking_chars = $thinkingText.Length
         error = $errorText
         eval_count = $evalCount
         eval_duration_ns = $evalDuration
@@ -80,7 +131,7 @@ function Invoke-CentralModelBenchmark {
 
   $sorted = @($results | Sort-Object -Property @{Expression='score_pct';Descending=$true}, @{Expression='total_elapsed_ms';Descending=$false})
   return [ordered]@{
-    schema = 'central_model_benchmark_v2'
+    schema = 'central_model_benchmark_v3'
     generated_at = [DateTimeOffset]::UtcNow.ToString('o')
     benchmark = $sorted
   }
