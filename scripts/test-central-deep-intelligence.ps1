@@ -29,6 +29,18 @@ if (Test-CentralGenerativeModelName 'nomic-embed-text:latest') { throw 'Embeddin
 if (Test-CentralGenerativeModelName 'mxbai-embed-large:latest') { throw 'Embedding model must not be accepted as a generative reasoning model.' }
 if (-not (Test-CentralGenerativeModelName 'qwen3:4b-instruct')) { throw 'Known Qwen generative model was incorrectly filtered.' }
 
+# Prove bounded PowerShell capability dispatch happens before any model/objective/RAG path.
+. (Join-Path $root 'scripts/central_local_agent_team.ps1')
+function Get-CentralHardwareInventory {
+  param([string]$OllamaUrl)
+  return [ordered]@{ probe='stubbed'; ollama_url=$OllamaUrl }
+}
+$capPayload = [pscustomobject]@{ mode='hardware_inventory' }
+$capResult = Invoke-CentralLocalAgentTeam -Payload $capPayload -WorkDir $root -ObsidianVault $root -OllamaUrl 'http://127.0.0.1:9'
+if ($capResult.performance_profile -ne 'powershell_capability_v2') { throw 'Direct capability did not bypass the reasoning path.' }
+if ($capResult.capability_dispatch -ne 'direct_pre_reasoning') { throw 'Direct capability dispatch marker missing.' }
+if ($capResult.result.probe -ne 'stubbed') { throw 'Direct capability stub result missing.' }
+
 $tmp = Join-Path ([IO.Path]::GetTempPath()) ('central-deep-intelligence-' + [guid]::NewGuid().ToString('N'))
 try {
   $central = Join-Path $tmp 'CENTRAL/PROJECTS/POWERTV'
