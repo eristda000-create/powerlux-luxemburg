@@ -36,6 +36,30 @@ $elapsedProbe = Get-CentralBenchmarkElapsedTotal -TaskResults @(
 )
 if ($elapsedProbe -ne 40) { throw "Benchmark elapsed aggregation is wrong: $elapsedProbe" }
 
+# Prove the router's Ollama override only enables native thinking for explicit deep Qwen3.5 9B calls.
+$script:CapturedOllamaBody = $null
+function Invoke-RestMethod {
+  param(
+    [string]$Method,
+    [string]$Uri,
+    [string]$ContentType,
+    [string]$Body,
+    [int]$TimeoutSec
+  )
+  $script:CapturedOllamaBody = $Body | ConvertFrom-Json
+  return [pscustomobject]@{ response='FINAL_OK'; thinking='stubbed private reasoning' }
+}
+
+$deepOut = Invoke-CentralOllamaAgent -OllamaUrl 'http://127.0.0.1:9' -Model 'qwen3.5:9b' -Prompt "Project: central`nMode: deep`nObjective: test" -MaxTokens 180 -ContextTokens 3328 -TimeoutSec 120
+if ($deepOut -ne 'FINAL_OK') { throw 'Deep Ollama override did not return the final response.' }
+if (-not [bool]$script:CapturedOllamaBody.think) { throw 'Deep qwen3.5:9b must use native Ollama thinking.' }
+if ([int]$script:CapturedOllamaBody.options.num_predict -lt 384) { throw 'Deep qwen3.5:9b thinking budget is too small to reliably emit a final answer.' }
+
+$standardOut = Invoke-CentralOllamaAgent -OllamaUrl 'http://127.0.0.1:9' -Model 'qwen3:4b-instruct' -Prompt "Project: central`nMode: analysis`nObjective: test" -MaxTokens 180 -ContextTokens 3328 -TimeoutSec 120
+if ($standardOut -ne 'FINAL_OK') { throw 'Standard Ollama override did not return the final response.' }
+if ([bool]$script:CapturedOllamaBody.think) { throw 'Routine qwen3:4b-instruct must remain non-thinking for latency.' }
+Remove-Item Function:\Invoke-RestMethod -Force
+
 # Prove bounded PowerShell capability dispatch happens before any model/objective/RAG path.
 . (Join-Path $root 'scripts/central_local_agent_team.ps1')
 function Get-CentralHardwareInventory {
