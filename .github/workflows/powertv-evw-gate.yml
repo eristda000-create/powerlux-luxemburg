@@ -1,0 +1,72 @@
+name: PowerTV EVW Growth Gate
+
+on:
+  push:
+    branches:
+      - feature/powertv-vercel-migration
+    paths:
+      - 'powertv/**'
+      - '.github/workflows/powertv-evw-gate.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/powertv-vercel-migration
+
+      - name: Preserve authentic PowerTV runtime fingerprint
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s powertv/index.html
+          test -s powertv/assets/index-qo0EwjoB.js
+          grep -q 'PowerLux Associates' powertv/assets/index-qo0EwjoB.js
+          grep -q 'associate_player' powertv/SOURCE_MANIFEST.txt
+
+      - name: Validate EVW live-discovery layer
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s powertv/evw-growth.js
+          test -s powertv/evw-growth.css
+          test -s powertv/east-vs-west/index.html
+          node --check powertv/evw-growth.js
+          grep -q 'UC3Dw8OYsWmZqrM1qBBZUMhQ' powertv/evw-growth.js
+          grep -q 'UCIEjGMfXbN4LFYSnV8qSgAQ' powertv/evw-growth.js
+          grep -q 'UCAH2krcji9uc3gYSqa33Zyw' powertv/evw-growth.js
+          grep -q 'live.evwsports.com' powertv/evw-growth.js
+          grep -q 'PowerTV hostet keinen fremden PPV-Feed' powertv/evw-growth.js
+
+      - name: Validate Google discovery surfaces
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s powertv/robots.txt
+          test -s powertv/sitemap.xml
+          grep -q 'east-vs-west' powertv/sitemap.xml
+          grep -q 'application/ld+json' powertv/index.html
+          grep -q 'application/ld+json' powertv/east-vs-west/index.html
+          grep -q 'SportsEvent' powertv/east-vs-west/index.html
+          grep -q 'FAQPage' powertv/east-vs-west/index.html
+          grep -q 'index,follow' powertv/east-vs-west/index.html
+
+      - name: Validate HTML invariants
+        shell: python
+        run: |
+          from pathlib import Path
+          home = Path('powertv/index.html').read_text(encoding='utf-8')
+          evw = Path('powertv/east-vs-west/index.html').read_text(encoding='utf-8')
+          required_home = ['/assets/index-qo0EwjoB.js','/assets/index-C8bposip.css','/evw-growth.js','/evw-growth.css']
+          for marker in required_home:
+              assert marker in home, marker
+          assert '<div id="app">' in home
+          assert 'East vs West 26 Live' in evw
+          assert 'PowerTV does not mirror or restream it' in evw
+          assert evw.count('youtube-nocookie.com/embed/live_stream') >= 3
+          print('POWERTV_EVW_GROWTH_GATE=PASS')
