@@ -22,6 +22,13 @@ function Test-CentralRuntimeImpactingPath([string]$Path) {
     'scripts/central_obsidian_connect.ps1',
     'scripts/central_obsidian_mount.ps1',
     'scripts/central_obsidian_rag.ps1',
+    'scripts/central_obsidian_rag_v2.ps1',
+    'scripts/central_context_capsule.ps1',
+    'scripts/central_model_router.ps1',
+    'scripts/central_model_benchmark.ps1',
+    'scripts/central_model_pull.ps1',
+    'scripts/central_hardware_inventory.ps1',
+    'scripts/central_lab_sync.ps1',
     'scripts/central_embedding_bootstrap.ps1',
     'scripts/central_model_manager.ps1',
     'scripts/central_safe_repo_update.ps1'
@@ -30,6 +37,38 @@ function Test-CentralRuntimeImpactingPath([string]$Path) {
     if ($p.Equals($runtimeFile,[StringComparison]::OrdinalIgnoreCase)) { return $true }
   }
   return $false
+}
+
+function Test-CentralGitTreeCleanOrRefreshable {
+  param([Parameter(Mandatory=$true)][string]$WorkDir)
+
+  $dirty = (& git -C $WorkDir status --porcelain=v1 --untracked-files=all 2>&1 | Out-String).Trim()
+  if ($LASTEXITCODE -ne 0) { throw "Unable to inspect working tree: $dirty" }
+  if ([string]::IsNullOrWhiteSpace($dirty)) {
+    return [ordered]@{ clean=$true; refreshed=$false; status='' }
+  }
+
+  $lines = @($dirty -split "`r?`n" | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+  $untracked = @($lines | Where-Object { $_.StartsWith('??') })
+  if ($untracked.Count -gt 0) {
+    return [ordered]@{ clean=$false; refreshed=$false; status=$dirty; reason='untracked_files' }
+  }
+
+  & git -C $WorkDir diff --quiet --exit-code -- 2>$null
+  $worktreeDiff = $LASTEXITCODE
+  & git -C $WorkDir diff --cached --quiet --exit-code -- 2>$null
+  $cachedDiff = $LASTEXITCODE
+
+  if ($worktreeDiff -eq 0 -and $cachedDiff -eq 0) {
+    & git -C $WorkDir update-index --refresh 2>$null | Out-Null
+    $refreshExit = $LASTEXITCODE
+    $after = (& git -C $WorkDir status --porcelain=v1 --untracked-files=all 2>&1 | Out-String).Trim()
+    if ($refreshExit -eq 0 -and [string]::IsNullOrWhiteSpace($after)) {
+      return [ordered]@{ clean=$true; refreshed=$true; status=''; prior_status=$dirty; reason='stat_only_index_refresh' }
+    }
+  }
+
+  return [ordered]@{ clean=$false; refreshed=$false; status=$dirty; reason='real_or_unresolved_diff' }
 }
 
 function Invoke-CentralSafeRepoUpdate {
@@ -62,10 +101,9 @@ function Invoke-CentralSafeRepoUpdate {
     throw "Safe repo update refused unexpected origin remote: $origin"
   }
 
-  $dirty = (& git -C $resolvedWorkDir status --porcelain=v1 --untracked-files=all 2>&1 | Out-String).Trim()
-  if ($LASTEXITCODE -ne 0) { throw "Unable to inspect working tree: $dirty" }
-  if (-not [string]::IsNullOrWhiteSpace($dirty)) {
-    throw 'Safe repo update requires a completely clean working tree, including no untracked files.'
+  $treeCheck = Test-CentralGitTreeCleanOrRefreshable -WorkDir $resolvedWorkDir
+  if (-not [bool]$treeCheck.clean) {
+    throw "Safe repo update requires a clean working tree. reason=$($treeCheck.reason) status=$($treeCheck.status)"
   }
 
   $before = (& git -C $resolvedWorkDir rev-parse HEAD 2>&1 | Out-String).Trim()
@@ -90,6 +128,7 @@ function Invoke-CentralSafeRepoUpdate {
       changed_files = @()
       runtime_impacting_files = @()
       restart_required = $false
+      index_refreshed = [bool]$treeCheck.refreshed
       status = 'up_to_date'
     }
   }
@@ -113,9 +152,9 @@ function Invoke-CentralSafeRepoUpdate {
     throw "Post-update verification failed. expected=$remoteHead actual=$after"
   }
 
-  $postDirty = (& git -C $resolvedWorkDir status --porcelain=v1 --untracked-files=all 2>&1 | Out-String).Trim()
-  if ($LASTEXITCODE -ne 0 -or -not [string]::IsNullOrWhiteSpace($postDirty)) {
-    throw 'Post-update verification failed: working tree is not clean.'
+  $postTree = Test-CentralGitTreeCleanOrRefreshable -WorkDir $resolvedWorkDir
+  if (-not [bool]$postTree.clean) {
+    throw "Post-update verification failed: working tree is not clean. reason=$($postTree.reason) status=$($postTree.status)"
   }
 
   $bridgeCompat = [Environment]::GetEnvironmentVariable('CENTRAL_RUNTIME_AWARE_CHANGED_COMPAT')
@@ -137,6 +176,7 @@ function Invoke-CentralSafeRepoUpdate {
     changed_files = $changedFiles
     runtime_impacting_files = $runtimeImpactingFiles
     restart_required = $restartRequired
+    index_refreshed = [bool]($treeCheck.refreshed -or $postTree.refreshed)
     status = 'fast_forwarded'
     fetch_output = $fetchOutput
     merge_output = $mergeOutput
