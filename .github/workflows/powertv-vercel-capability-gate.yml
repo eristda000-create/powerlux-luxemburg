@@ -1,0 +1,37 @@
+name: PowerTV Vercel Capability Gate
+
+on:
+  pull_request:
+    paths:
+      - 'powertv/**'
+      - 'scripts/central_vercel_release.ps1'
+      - 'scripts/central_local_agent_team.ps1'
+      - 'scripts/test-powertv-vercel-release.ps1'
+      - '.github/workflows/powertv-vercel-capability-gate.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate exact PowerTV release source and bounded Vercel capability
+        shell: pwsh
+        run: ./scripts/test-powertv-vercel-release.ps1
+      - name: Validate EVW static growth surfaces
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check powertv/evw-growth.js
+          grep -q 'PowerLux Associates' powertv/assets/index-qo0EwjoB.js
+          grep -q 'runtime_fingerprint_required=associate_player' powertv/SOURCE_MANIFEST.txt
+          grep -q 'UC3Dw8OYsWmZqrM1qBBZUMhQ' powertv/evw-growth.js
+          grep -q 'UCIEjGMfXbN4LFYSnV8qSgAQ' powertv/evw-growth.js
+          grep -q 'UCAH2krcji9uc3gYSqa33Zyw' powertv/evw-growth.js
+          grep -q 'SportsEvent' powertv/east-vs-west/index.html
+          grep -q 'FAQPage' powertv/east-vs-west/index.html
+          grep -q 'east-vs-west' powertv/sitemap.xml
+          echo 'POWERTV_VERCEL_CAPABILITY_GATE=PASS'
