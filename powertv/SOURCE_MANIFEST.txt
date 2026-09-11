@@ -1,0 +1,7 @@
+source_deploy_id=6aa07af3e223ccf2a59bb7c1
+source_deploy_url=https://6aa07af3e223ccf2a59bb7c1--powertv-network.netlify.app
+captured_at=2026-09-11T11:54:34Z
+runtime_fingerprint_required=associate_player
+source_file_count=2
+467728bf4943139fbd53dbb48bdb5fa344a682c59f10782c2cfe3a4bb0062ee3  powertv/index.html
+256568a89c99e378afb7eb3aa4b848f75c7fc8e6059afa7d07289606cf7d4c7f  powertv/associate-acs.png
