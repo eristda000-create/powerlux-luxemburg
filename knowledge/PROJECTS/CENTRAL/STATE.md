@@ -15,8 +15,9 @@ Create a reliable human+agent management operating system that links strategy to
 
 - Verified Windows node: `DESKTOP-FP4OP26-User`.
 - CENTRAL Supervisor and Workshop Bridge are active.
-- Ollama models available: `qwen3:4b-instruct` and `qwen3:1.7b`.
-- Qwen 4B is the primary local analyst; 1.7B is the fast critic/planner.
+- Ollama models available on the verified node: `qwen3:4b-instruct`, `qwen3.5:4b`, `qwen3.5:9b`, `qwen3:1.7b`, plus `nomic-embed-text:latest` for embeddings.
+- `qwen3.5:9b` was present in the verified-node Ollama inventory on 2026-09-11 and returned the exact bounded smoke-test response `CENTRAL_DEEP_OK`.
+- `qwen3:4b-instruct` remains the routine bounded reasoning default; `qwen3.5:9b` is reserved for explicit deep/complex local reasoning pending comparative benchmark evidence. `qwen3:1.7b` remains advisory/fallback only.
 - Local arbitrary shell is disabled.
 - Safe Git fast-forward update is available and has completed real updates on the PC.
 - Local-to-controller escalation is supported through `CONTROLLER_NEEDED` and the assistant-request control plane.
@@ -34,9 +35,10 @@ Create a reliable human+agent management operating system that links strategy to
 
 1. Most legacy work items predate the Management Kernel and are not yet tied to initiative/outcome/proof-of-value context.
 2. Heavy multi-agent local runs remain timeout-prone and should not be the default path.
-3. Too many historical `requires_human` flags can distort executive views unless restricted to open decision states.
-4. Evidence and value realization are still sparse because the kernel is new; quality matters more than backfilling speculative values.
-5. Git governance needs strict branch/PR discipline; a direct-main placeholder write on 2026-09-11 was an operator error and must not be normalized as an allowed workflow.
+3. The newly available `qwen3.5:9b` has only a bounded smoke-test proof so far; comparative quality/latency/value evidence is still needed before expanding its routing role.
+4. Too many historical `requires_human` flags can distort executive views unless restricted to open decision states.
+5. Evidence and value realization are still sparse because the kernel is new; quality matters more than backfilling speculative values.
+6. Git governance needs strict branch/PR discipline; a direct-main placeholder write on 2026-09-11 was an operator error and must not be normalized as an allowed workflow.
 
 ## Current decision
 
@@ -45,7 +47,8 @@ Operate CENTRAL as a management system, not a task factory:
 - `core_engine_work_items` = execution queue only;
 - portfolio truth lives in the Management Kernel;
 - substantive work should carry `value_stream`, `initiative_key`, `expected_outcome`, `proof_of_value`, and `experiment_key` when relevant;
-- bounded 4B microjobs are default local reasoning;
+- bounded `qwen3:4b-instruct` microjobs remain default local reasoning;
+- `qwen3.5:9b` is permitted only for explicit deep/complex local reasoning until comparative evidence justifies broader use;
 - decision rights depend on risk, ambiguity, reversibility and commitment;
 - humans retain production/external/financial accountability.
 
@@ -53,10 +56,11 @@ Operate CENTRAL as a management system, not a task factory:
 
 1. Raise management-context coverage from the 7.1% legacy baseline toward 100% for new substantive work.
 2. Keep heavy `local_agent_team` usage exceptional and evidence-justified.
-3. Populate the value ledger only when expected/validated/realized value is actually supportable.
-4. Expand the release registry to PowerLux, MERG and Cogni using functional fingerprints rather than names/URLs alone.
-5. Use the Executive Scorecard as the management readout instead of raw task counts.
-6. Keep canonical knowledge, Supabase kernel and controller policy aligned through safe Git PRs.
+3. Benchmark `qwen3.5:9b` with bounded microjobs against the routine 4B baseline before changing default routing or claiming higher value.
+4. Populate the value ledger only when expected/validated/realized value is actually supportable.
+5. Expand the release registry to PowerLux, MERG and Cogni using functional fingerprints rather than names/URLs alone.
+6. Use the Executive Scorecard as the management readout instead of raw task counts.
+7. Keep canonical knowledge, Supabase kernel and controller policy aligned through safe Git PRs.
 
 ## KPIs
 
