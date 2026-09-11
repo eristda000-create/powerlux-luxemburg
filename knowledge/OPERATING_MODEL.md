@@ -2,7 +2,7 @@
 type: knowledge-policy
 status: canonical
 owner: chatgpt-controller
-updated: 2026-09-10
+updated: 2026-09-11
 ---
 
 # Obsidian Knowledge Operating Standard v1
@@ -42,6 +42,24 @@ Record failure modes, stop rules, rights/privacy/security boundaries and escalat
 ### 9. Evidence ledger
 Prefer links/IDs to owning systems over copied data. GitHub owns source history; Supabase owns operational records; Vercel owns deployment evidence; Gmail owns message state; official external sources own public facts.
 
+## Management Kernel
+
+CENTRAL now governs substantive work through the hierarchy:
+
+**Value Stream → Objective → Initiative → Experiment → Work Item → Evidence → Value**
+
+`core_engine_work_items` is the execution layer, not the portfolio system.
+
+Before substantive CENTRAL / PowerLux / PowerTV / MERG / Cogni work is accepted, it should carry `value_stream`, `initiative_key`, `expected_outcome` and `proof_of_value`, plus `experiment_key` when applicable. Infrastructure-only sync/self-test work is exempt.
+
+Decision rights are based on risk, ambiguity, reversibility, external commitment and production impact:
+
+- low-risk / low-ambiguity / reversible → AI autonomous;
+- high ambiguity → controller review;
+- external commitment, spend, irreversible action or production release → human approval.
+
+The detailed policy and live baseline are in `MANAGEMENT_KERNEL.md`.
+
 ## Knowledge lifecycle
 
 **UNVERIFIED → REVIEWED → CANONICAL → SUPERSEDED/ARCHIVED**
@@ -79,6 +97,7 @@ A current event, sponsor, partner or technical issue must not become the whole p
 
 - Qwen should consult the relevant project state before substantive local analysis.
 - For broad opportunity/growth work, Qwen and the controller must also consult `OPPORTUNITY_RADAR.md` and avoid single-project or single-event tunnel vision.
+- Bounded `qwen3:4b-instruct` microjobs are the default local execution profile; heavy `local_agent_team` runs are reserved for deep synthesis because observed timeout performance is materially worse.
 - If current cloud/account/web truth is required, output `CONTROLLER_NEEDED` instead of guessing.
 - Controller should check whether a completed action changes durable project knowledge.
 - If yes, update the relevant canonical knowledge note in the same controlled Git workflow as the underlying project change whenever practical.
