@@ -75,6 +75,34 @@ if (-not (Test-Ollama)) {
 
 if (-not (Test-Ollama)) {
   Write-Warning 'Ollama is not reachable. The bridge will start, but runtime verification will remain false until Ollama responds.'
+} else {
+  $embeddingBootstrap = Join-Path $PSScriptRoot 'central_embedding_bootstrap.ps1'
+  if (Test-Path -LiteralPath $embeddingBootstrap -PathType Leaf) {
+    try {
+      $pwsh = Get-Command pwsh -ErrorAction SilentlyContinue
+      if ($null -ne $pwsh) {
+        $embedModel = [Environment]::GetEnvironmentVariable('CENTRAL_OLLAMA_EMBED_MODEL')
+        if ([string]::IsNullOrWhiteSpace($embedModel)) { $embedModel = 'nomic-embed-text' }
+        $existing = @()
+        if ($IsWindows) {
+          $existing = @(Get-CimInstance Win32_Process -ErrorAction SilentlyContinue | Where-Object {
+            $_.Name -in @('pwsh.exe','powershell.exe') -and
+            -not [string]::IsNullOrWhiteSpace($_.CommandLine) -and
+            $_.CommandLine -like '*central_embedding_bootstrap.ps1*'
+          })
+        }
+        if ($existing.Count -eq 0) {
+          if ($IsWindows) {
+            Start-Process -FilePath $pwsh.Source -ArgumentList @('-NoProfile','-ExecutionPolicy','Bypass','-File',$embeddingBootstrap,'-Model',$embedModel) -WindowStyle Hidden | Out-Null
+          } else {
+            Start-Process -FilePath $pwsh.Source -ArgumentList @('-NoProfile','-File',$embeddingBootstrap,'-Model',$embedModel) | Out-Null
+          }
+        }
+      }
+    } catch {
+      Write-Warning "Embedding bootstrap failed safely: $($_.Exception.Message)"
+    }
+  }
 }
 
 $runner = Join-Path $PSScriptRoot 'central_workshop_bridge.ps1'
