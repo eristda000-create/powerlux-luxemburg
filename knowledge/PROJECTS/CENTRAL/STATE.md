@@ -17,7 +17,10 @@ Create a reliable human+agent management operating system that links strategy to
 - CENTRAL Supervisor and Workshop Bridge are active.
 - Ollama models available on the verified node: `qwen3:4b-instruct`, `qwen3.5:4b`, `qwen3.5:9b`, `qwen3:1.7b`, plus `nomic-embed-text:latest` for embeddings.
 - `qwen3.5:9b` was present in the verified-node Ollama inventory on 2026-09-11 and returned the exact bounded smoke-test response `CENTRAL_DEEP_OK`.
-- `qwen3:4b-instruct` remains the routine bounded reasoning default; `qwen3.5:9b` is reserved for explicit deep/complex local reasoning pending comparative benchmark evidence. `qwen3:1.7b` remains advisory/fallback only.
+- Benchmark v3 on 2026-09-11 measured `qwen3.5:9b` at 3/4 exact-pass (75%, 183.029 s total), versus 2/4 for both `qwen3:4b-instruct` (49.614 s) and `qwen3.5:4b` (52.069 s). The 9B deep-reasoning case still failed exact-output acceptance and produced 501 thinking characters with an empty final response.
+- A live 9B Hybrid-RAG `local_agent_team` smoke after PR47 exceeded the configured 300 s HttpClient timeout and did not meet its expected outcome. This is negative runtime evidence, not a model-quality proof.
+- GitHub `main` subsequently merged PR48 at `974ecacdaf15fbe0e0f650a34bfdaeed9f974bc7`, bounding the deep 9B runtime after that timeout evidence; the verified desktop fast-forwarded to the same commit.
+- `qwen3:4b-instruct` remains the routine bounded reasoning default. `qwen3.5:9b` remains deep-only: its benchmark correctness signal is stronger in this small sample, but latency and full-RAG timeout behavior do not justify broader routing.
 - Local arbitrary shell is disabled.
 - Safe Git fast-forward update is available and has completed real updates on the PC.
 - Local-to-controller escalation is supported through `CONTROLLER_NEEDED` and the assistant-request control plane.
@@ -35,7 +38,7 @@ Create a reliable human+agent management operating system that links strategy to
 
 1. Most legacy work items predate the Management Kernel and are not yet tied to initiative/outcome/proof-of-value context.
 2. Heavy multi-agent local runs remain timeout-prone and should not be the default path.
-3. The newly available `qwen3.5:9b` has only a bounded smoke-test proof so far; comparative quality/latency/value evidence is still needed before expanding its routing role.
+3. `qwen3.5:9b` now has comparative evidence, but the sample is small and the full-RAG deep path timed out before PR48; post-PR48 bounded verification is still needed before any routing expansion.
 4. Too many historical `requires_human` flags can distort executive views unless restricted to open decision states.
 5. Evidence and value realization are still sparse because the kernel is new; quality matters more than backfilling speculative values.
 6. Git governance needs strict branch/PR discipline; a direct-main placeholder write on 2026-09-11 was an operator error and must not be normalized as an allowed workflow.
@@ -48,7 +51,7 @@ Operate CENTRAL as a management system, not a task factory:
 - portfolio truth lives in the Management Kernel;
 - substantive work should carry `value_stream`, `initiative_key`, `expected_outcome`, `proof_of_value`, and `experiment_key` when relevant;
 - bounded `qwen3:4b-instruct` microjobs remain default local reasoning;
-- `qwen3.5:9b` is permitted only for explicit deep/complex local reasoning until comparative evidence justifies broader use;
+- `qwen3.5:9b` remains explicit deep-only; benchmark v3 is encouraging on exact correctness but is outweighed for broader routing by materially higher latency and the observed full-RAG timeout until post-PR48 verification succeeds;
 - decision rights depend on risk, ambiguity, reversibility and commitment;
 - humans retain production/external/financial accountability.
 
@@ -56,11 +59,12 @@ Operate CENTRAL as a management system, not a task factory:
 
 1. Raise management-context coverage from the 7.1% legacy baseline toward 100% for new substantive work.
 2. Keep heavy `local_agent_team` usage exceptional and evidence-justified.
-3. Benchmark `qwen3.5:9b` with bounded microjobs against the routine 4B baseline before changing default routing or claiming higher value.
-4. Populate the value ledger only when expected/validated/realized value is actually supportable.
-5. Expand the release registry to PowerLux, MERG and Cogni using functional fingerprints rather than names/URLs alone.
-6. Use the Executive Scorecard as the management readout instead of raw task counts.
-7. Keep canonical knowledge, Supabase kernel and controller policy aligned through safe Git PRs.
+3. Run one bounded post-PR48 deep/RAG verification on the verified node; require a nonempty final response inside the bounded runtime before treating PR48 as behavioral proof.
+4. Keep 4B as routine default and 9B as deep-only unless repeated post-fix evidence shows a better correctness/latency/value trade-off.
+5. Populate the value ledger only when expected/validated/realized value is actually supportable.
+6. Expand the release registry to PowerLux, MERG and Cogni using functional fingerprints rather than names/URLs alone.
+7. Use the Executive Scorecard as the management readout instead of raw task counts.
+8. Keep canonical knowledge, Supabase kernel and controller policy aligned through safe Git PRs.
 
 ## KPIs
 
@@ -70,6 +74,7 @@ Operate CENTRAL as a management system, not a task factory:
 - unsafe Git operations = 0
 - controller escalations resolved with evidence
 - bounded local-job timeout rate materially below heavy team-run timeout rate
+- deep 9B post-fix verification returns a nonempty accepted result inside the configured bound
 - verified value ledger entries with source evidence = 100%
 - latest verified releases resolved by evidence + functional fingerprint = 100% for managed frontends
 
