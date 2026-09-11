@@ -103,7 +103,7 @@ function Invoke-CentralSafeRepoUpdate {
 
   $treeCheck = Test-CentralGitTreeCleanOrRefreshable -WorkDir $resolvedWorkDir
   if (-not [bool]$treeCheck.clean) {
-    throw "Safe repo update requires a clean working tree. reason=$($treeCheck.reason) status=$($treeCheck.status)"
+    throw "Safe repo update requires a completely clean working tree, including no untracked files. reason=$($treeCheck.reason) status=$($treeCheck.status)"
   }
 
   $before = (& git -C $resolvedWorkDir rev-parse HEAD 2>&1 | Out-String).Trim()
