@@ -9,6 +9,29 @@ function Normalize-CentralGitRemote([string]$Remote) {
   return $value.ToLowerInvariant()
 }
 
+function Test-CentralRuntimeImpactingPath([string]$Path) {
+  if ([string]::IsNullOrWhiteSpace($Path)) { return $false }
+  $p = $Path.Replace('\\','/').TrimStart('/')
+  $runtimeFiles = @(
+    'scripts/central_workshop_bridge.ps1',
+    'scripts/start-central-workshop.ps1',
+    'scripts/central_supervisor.ps1',
+    'scripts/central_local_agent_team.ps1',
+    'scripts/central_local_agent_team_core.ps1',
+    'scripts/central_local_agent_autonomy.ps1',
+    'scripts/central_obsidian_connect.ps1',
+    'scripts/central_obsidian_mount.ps1',
+    'scripts/central_obsidian_rag.ps1',
+    'scripts/central_embedding_bootstrap.ps1',
+    'scripts/central_model_manager.ps1',
+    'scripts/central_safe_repo_update.ps1'
+  )
+  foreach ($runtimeFile in $runtimeFiles) {
+    if ($p.Equals($runtimeFile,[StringComparison]::OrdinalIgnoreCase)) { return $true }
+  }
+  return $false
+}
+
 function Invoke-CentralSafeRepoUpdate {
   [CmdletBinding()]
   param(
@@ -62,7 +85,10 @@ function Invoke-CentralSafeRepoUpdate {
       origin = $origin
       before = $before
       after = $before
+      repo_changed = $false
       changed = $false
+      changed_files = @()
+      runtime_impacting_files = @()
       restart_required = $false
       status = 'up_to_date'
     }
@@ -73,6 +99,11 @@ function Invoke-CentralSafeRepoUpdate {
   if ($ancestorExit -ne 0) {
     throw 'Safe repo update refused: local main is not an ancestor of origin/main. No reset/rebase/force operation is permitted.'
   }
+
+  $changedFiles = @((& git -C $resolvedWorkDir diff --name-only $before origin/main 2>&1 | ForEach-Object { [string]$_ } | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }))
+  if ($LASTEXITCODE -ne 0) { throw 'Unable to determine changed files before safe update.' }
+  $runtimeImpactingFiles = @($changedFiles | Where-Object { Test-CentralRuntimeImpactingPath $_ })
+  $restartRequired = ($runtimeImpactingFiles.Count -gt 0)
 
   $mergeOutput = (& git -C $resolvedWorkDir merge --ff-only origin/main 2>&1 | Out-String).Trim()
   if ($LASTEXITCODE -ne 0) { throw "Fast-forward merge failed: $mergeOutput" }
@@ -87,6 +118,12 @@ function Invoke-CentralSafeRepoUpdate {
     throw 'Post-update verification failed: working tree is not clean.'
   }
 
+  $bridgeCompat = [Environment]::GetEnvironmentVariable('CENTRAL_RUNTIME_AWARE_CHANGED_COMPAT')
+  $changedForCaller = $true
+  if ($bridgeCompat -in @('1','true','TRUE','yes','YES')) {
+    $changedForCaller = $restartRequired
+  }
+
   return [ordered]@{
     action = 'git_fast_forward_update'
     workdir = $resolvedWorkDir
@@ -94,8 +131,12 @@ function Invoke-CentralSafeRepoUpdate {
     origin = $origin
     before = $before
     after = $after
-    changed = $true
-    restart_required = $true
+    repo_changed = $true
+    changed = $changedForCaller
+    changed_semantics = if ($bridgeCompat) { 'runtime_restart_compatibility' } else { 'repository_changed' }
+    changed_files = $changedFiles
+    runtime_impacting_files = $runtimeImpactingFiles
+    restart_required = $restartRequired
     status = 'fast_forwarded'
     fetch_output = $fetchOutput
     merge_output = $mergeOutput

@@ -5,6 +5,7 @@ on:
     paths:
       - 'scripts/central_local_agent_autonomy.ps1'
       - 'scripts/central_local_agent_team.ps1'
+      - 'scripts/central_local_agent_team_core.ps1'
       - 'supabase/functions/central-workshop-bridge/**'
       - 'supabase/migrations/*central_assistant_request*'
       - '.github/workflows/central-assistant-request-gate.yml'
@@ -27,7 +28,8 @@ jobs:
         run: |
           $files = @(
             './scripts/central_local_agent_autonomy.ps1',
-            './scripts/central_local_agent_team.ps1'
+            './scripts/central_local_agent_team.ps1',
+            './scripts/central_local_agent_team_core.ps1'
           )
           foreach ($file in $files) {
             $errors = $null
@@ -48,7 +50,8 @@ jobs:
         run: |
           set -euo pipefail
           A='scripts/central_local_agent_autonomy.ps1'
-          T='scripts/central_local_agent_team.ps1'
+          W='scripts/central_local_agent_team.ps1'
+          T='scripts/central_local_agent_team_core.ps1'
           grep -q "'assistant_request'" "$A"
           grep -q "queued_for_chatgpt_review" "$A"
           grep -q "local Safe-Action Planner" "$A"
@@ -56,6 +59,8 @@ jobs:
           grep -q "Never include passwords, tokens, cookies, secrets" "$A"
           grep -q "never ask for a rebuild, replica, mockup or replacement frontend" "$A"
           ! grep -Eq 'Invoke-Expression|iex[[:space:]]|Start-Process[[:space:]].*(cmd|powershell|pwsh)' "$A"
+          grep -q "central_local_agent_team_core.ps1" "$W"
+          grep -q "central_obsidian_rag.ps1" "$W"
           grep -q "Get-CentralDefaultContextPaths" "$T"
           grep -q "powerlux_os/GIT_OPERATING_POLICY.md" "$T"
           grep -q "CONTROLLER_NEEDED" "$T"

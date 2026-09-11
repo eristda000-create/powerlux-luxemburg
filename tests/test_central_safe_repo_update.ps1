@@ -41,8 +41,12 @@ try {
   & git -C $seed init -b main | Out-Null
   Invoke-Git $seed config user.email 'central-test@example.invalid' | Out-Null
   Invoke-Git $seed config user.name 'CENTRAL Test' | Out-Null
-  Set-Content -LiteralPath (Join-Path $seed 'state.txt') -Value 'v1' -Encoding UTF8
-  Invoke-Git $seed add state.txt | Out-Null
+
+  New-Item -ItemType Directory -Path (Join-Path $seed 'knowledge') -Force | Out-Null
+  New-Item -ItemType Directory -Path (Join-Path $seed 'scripts') -Force | Out-Null
+  Set-Content -LiteralPath (Join-Path $seed 'knowledge/state.txt') -Value 'v1' -Encoding UTF8
+  Set-Content -LiteralPath (Join-Path $seed 'scripts/central_workshop_bridge.ps1') -Value '# runtime v1' -Encoding UTF8
+  Invoke-Git $seed add knowledge/state.txt scripts/central_workshop_bridge.ps1 | Out-Null
   Invoke-Git $seed commit -m 'seed v1' | Out-Null
   Invoke-Git $seed remote add origin $remote | Out-Null
   Invoke-Git $seed push -u origin main | Out-Null
@@ -54,19 +58,35 @@ try {
   Invoke-Git $work config user.email 'central-test@example.invalid' | Out-Null
   Invoke-Git $work config user.name 'CENTRAL Test' | Out-Null
 
-  Set-Content -LiteralPath (Join-Path $seed 'state.txt') -Value 'v2' -Encoding UTF8
-  Invoke-Git $seed add state.txt | Out-Null
-  Invoke-Git $seed commit -m 'seed v2' | Out-Null
+  # Knowledge-only fast-forward: repository changes, runtime does not need restart.
+  Set-Content -LiteralPath (Join-Path $seed 'knowledge/state.txt') -Value 'v2' -Encoding UTF8
+  Invoke-Git $seed add knowledge/state.txt | Out-Null
+  Invoke-Git $seed commit -m 'knowledge v2' | Out-Null
   Invoke-Git $seed push origin main | Out-Null
 
-  $updated = Invoke-CentralSafeRepoUpdate -WorkDir $work -CanonicalRemote $remote
-  Assert-True ([bool]$updated.changed) 'fast-forward update should report changed=true'
-  Assert-True ([bool]$updated.restart_required) 'changed update should request restart'
-  Assert-True ($updated.status -eq 'fast_forwarded') 'changed update should report fast_forwarded'
+  $knowledgeUpdate = Invoke-CentralSafeRepoUpdate -WorkDir $work -CanonicalRemote $remote
+  Assert-True ([bool]$knowledgeUpdate.changed) 'knowledge fast-forward should report changed=true to normal callers'
+  Assert-True ([bool]$knowledgeUpdate.repo_changed) 'knowledge fast-forward should report repo_changed=true'
+  Assert-True (-not [bool]$knowledgeUpdate.restart_required) 'knowledge-only update must not request runtime restart'
+  Assert-True ($knowledgeUpdate.status -eq 'fast_forwarded') 'knowledge update should report fast_forwarded'
+  Assert-True (@($knowledgeUpdate.runtime_impacting_files).Count -eq 0) 'knowledge-only update should have no runtime-impacting files'
+
+  # Runtime fast-forward: bridge/runtime file changes and must request restart.
+  Set-Content -LiteralPath (Join-Path $seed 'scripts/central_workshop_bridge.ps1') -Value '# runtime v2' -Encoding UTF8
+  Invoke-Git $seed add scripts/central_workshop_bridge.ps1 | Out-Null
+  Invoke-Git $seed commit -m 'runtime v2' | Out-Null
+  Invoke-Git $seed push origin main | Out-Null
+
+  $runtimeUpdate = Invoke-CentralSafeRepoUpdate -WorkDir $work -CanonicalRemote $remote
+  Assert-True ([bool]$runtimeUpdate.changed) 'runtime fast-forward should report changed=true'
+  Assert-True ([bool]$runtimeUpdate.repo_changed) 'runtime fast-forward should report repo_changed=true'
+  Assert-True ([bool]$runtimeUpdate.restart_required) 'runtime update should request restart'
+  Assert-True (@($runtimeUpdate.runtime_impacting_files) -contains 'scripts/central_workshop_bridge.ps1') 'runtime update should identify the bridge file'
   Assert-True ((Invoke-Git $work rev-parse HEAD) -eq (Invoke-Git $seed rev-parse HEAD)) 'local HEAD should equal remote main after update'
 
   $again = Invoke-CentralSafeRepoUpdate -WorkDir $work -CanonicalRemote $remote
   Assert-True (-not [bool]$again.changed) 'second update should be idempotent'
+  Assert-True (-not [bool]$again.repo_changed) 'second update should report repo_changed=false'
   Assert-True ($again.status -eq 'up_to_date') 'second update should report up_to_date'
 
   Set-Content -LiteralPath (Join-Path $work 'untracked.txt') -Value 'dirty' -Encoding UTF8
