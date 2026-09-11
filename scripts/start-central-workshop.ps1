@@ -105,6 +105,10 @@ if (-not (Test-Ollama)) {
   }
 }
 
+# Compatibility mode for the legacy bridge: `changed` means runtime-restart-required
+# while `repo_changed` remains the canonical Git truth in the updater result.
+$env:CENTRAL_RUNTIME_AWARE_CHANGED_COMPAT = '1'
+
 $runner = Join-Path $PSScriptRoot 'central_workshop_bridge.ps1'
 if (-not (Test-Path -LiteralPath $runner -PathType Leaf)) {
   throw "Bridge runner not found: $runner"
