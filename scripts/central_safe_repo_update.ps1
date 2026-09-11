@@ -17,10 +17,12 @@ function Test-CentralRuntimeImpactingPath([string]$Path) {
     'scripts/start-central-workshop.ps1',
     'scripts/central_supervisor.ps1',
     'scripts/central_local_agent_team.ps1',
+    'scripts/central_local_agent_team_core.ps1',
     'scripts/central_local_agent_autonomy.ps1',
     'scripts/central_obsidian_connect.ps1',
     'scripts/central_obsidian_mount.ps1',
     'scripts/central_obsidian_rag.ps1',
+    'scripts/central_embedding_bootstrap.ps1',
     'scripts/central_model_manager.ps1',
     'scripts/central_safe_repo_update.ps1'
   )
@@ -116,6 +118,12 @@ function Invoke-CentralSafeRepoUpdate {
     throw 'Post-update verification failed: working tree is not clean.'
   }
 
+  $bridgeCompat = [Environment]::GetEnvironmentVariable('CENTRAL_RUNTIME_AWARE_CHANGED_COMPAT')
+  $changedForCaller = $true
+  if ($bridgeCompat -in @('1','true','TRUE','yes','YES')) {
+    $changedForCaller = $restartRequired
+  }
+
   return [ordered]@{
     action = 'git_fast_forward_update'
     workdir = $resolvedWorkDir
@@ -124,8 +132,8 @@ function Invoke-CentralSafeRepoUpdate {
     before = $before
     after = $after
     repo_changed = $true
-    changed = $restartRequired
-    changed_semantics = 'runtime_restart_compatibility'
+    changed = $changedForCaller
+    changed_semantics = if ($bridgeCompat) { 'runtime_restart_compatibility' } else { 'repository_changed' }
     changed_files = $changedFiles
     runtime_impacting_files = $runtimeImpactingFiles
     restart_required = $restartRequired
