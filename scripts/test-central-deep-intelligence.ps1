@@ -7,6 +7,7 @@ $files = @(
   'scripts/central_lab_sync.ps1',
   'scripts/central_model_router.ps1',
   'scripts/central_model_benchmark.ps1',
+  'scripts/central_model_pull.ps1',
   'scripts/central_context_capsule.ps1',
   'scripts/central_obsidian_rag_v2.ps1',
   'scripts/central_local_agent_team.ps1'
