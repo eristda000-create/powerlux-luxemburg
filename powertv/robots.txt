@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://powertv-vercel-release.vercel.app/sitemap.xml
+Sitemap: https://powertv-evw-live.vercel.app/sitemap.xml
