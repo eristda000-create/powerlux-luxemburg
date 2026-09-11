@@ -145,7 +145,7 @@ function Test-CentralPowerTvReleaseSource {
   $bundle = Get-Content -LiteralPath (Join-Path $source 'assets/index-qo0EwjoB.js') -Raw
   $growth = Get-Content -LiteralPath (Join-Path $source 'evw-growth.js') -Raw
   $landing = Get-Content -LiteralPath (Join-Path $source 'east-vs-west/index.html') -Raw
-  $home = Get-Content -LiteralPath (Join-Path $source 'index.html') -Raw
+  $homeMarkup = Get-Content -LiteralPath (Join-Path $source 'index.html') -Raw
   $manifest = Get-Content -LiteralPath (Join-Path $source 'SOURCE_MANIFEST.txt') -Raw
 
   if ($bundle -notmatch 'PowerLux Associates') { throw 'Authentic PowerTV Associate Player fingerprint is missing.' }
@@ -155,7 +155,7 @@ function Test-CentralPowerTvReleaseSource {
   if ($growth -notmatch 'UCAH2krcji9uc3gYSqa33Zyw') { throw 'Voice of Armwrestling channel marker is missing.' }
   if ($landing -notmatch 'live\.evwsports\.com') { throw 'Official EVW PPV route is missing.' }
   if ($landing -notmatch 'FAQPage' -or $landing -notmatch 'SportsEvent') { throw 'EVW Google structured data is incomplete.' }
-  if ($home -notmatch '/evw-growth\.js' -or $home -notmatch '/assets/index-qo0EwjoB\.js') { throw 'PowerTV homepage no longer composes the authentic runtime with the EVW growth layer.' }
+  if ($homeMarkup -notmatch '/evw-growth\.js' -or $homeMarkup -notmatch '/assets/index-qo0EwjoB\.js') { throw 'PowerTV homepage no longer composes the authentic runtime with the EVW growth layer.' }
 
   return [ordered]@{
     valid = $true
@@ -224,19 +224,19 @@ function Test-CentralPowerTvCanonicalRelease {
   for ($attempt=1; $attempt -le [Math]::Max(1,$Attempts); $attempt++) {
     try {
       $stamp = [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
-      $home = Invoke-WebRequest -Uri "$script:CentralPowerTvCanonicalUrl/?central_verify=$stamp" -TimeoutSec 20
-      $evw = Invoke-WebRequest -Uri "$script:CentralPowerTvCanonicalUrl/east-vs-west/?central_verify=$stamp" -TimeoutSec 20
-      $robots = Invoke-WebRequest -Uri "$script:CentralPowerTvCanonicalUrl/robots.txt?central_verify=$stamp" -TimeoutSec 20
-      $sitemap = Invoke-WebRequest -Uri "$script:CentralPowerTvCanonicalUrl/sitemap.xml?central_verify=$stamp" -TimeoutSec 20
+      $homeResponse = Invoke-WebRequest -Uri "$script:CentralPowerTvCanonicalUrl/?central_verify=$stamp" -TimeoutSec 20
+      $evwResponse = Invoke-WebRequest -Uri "$script:CentralPowerTvCanonicalUrl/east-vs-west/?central_verify=$stamp" -TimeoutSec 20
+      $robotsResponse = Invoke-WebRequest -Uri "$script:CentralPowerTvCanonicalUrl/robots.txt?central_verify=$stamp" -TimeoutSec 20
+      $sitemapResponse = Invoke-WebRequest -Uri "$script:CentralPowerTvCanonicalUrl/sitemap.xml?central_verify=$stamp" -TimeoutSec 20
       $checks = [ordered]@{
-        home_http = [int]$home.StatusCode
-        evw_http = [int]$evw.StatusCode
-        robots_http = [int]$robots.StatusCode
-        sitemap_http = [int]$sitemap.StatusCode
-        home_growth_marker = ([string]$home.Content).Contains('evw-growth.js')
-        evw_marker = ([string]$evw.Content).Contains('East vs West 26 Live')
-        robots_marker = ([string]$robots.Content).Contains('Sitemap:')
-        sitemap_marker = ([string]$sitemap.Content).Contains('east-vs-west')
+        home_http = [int]$homeResponse.StatusCode
+        evw_http = [int]$evwResponse.StatusCode
+        robots_http = [int]$robotsResponse.StatusCode
+        sitemap_http = [int]$sitemapResponse.StatusCode
+        home_growth_marker = ([string]$homeResponse.Content).Contains('evw-growth.js')
+        evw_marker = ([string]$evwResponse.Content).Contains('East vs West 26 Live')
+        robots_marker = ([string]$robotsResponse.Content).Contains('Sitemap:')
+        sitemap_marker = ([string]$sitemapResponse.Content).Contains('east-vs-west')
       }
       if ($checks.home_http -eq 200 -and $checks.evw_http -eq 200 -and $checks.robots_http -eq 200 -and $checks.sitemap_http -eq 200 -and $checks.home_growth_marker -and $checks.evw_marker -and $checks.robots_marker -and $checks.sitemap_marker) {
         return [ordered]@{ verified=$true; attempt=$attempt; checks=$checks; canonical_url=$script:CentralPowerTvCanonicalUrl }
