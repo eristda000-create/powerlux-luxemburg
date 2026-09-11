@@ -1,0 +1,74 @@
+name: PowerTV Live External Smoke
+
+on:
+  push:
+    branches:
+      - chore/powertv-live-smoke
+    paths:
+      - '.github/workflows/powertv-live-smoke.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      BASE: https://powertv-evw-live-eristda000-2732s-projects.vercel.app
+      CDN: https://cdn.jsdelivr.net/gh/eristda000-create/powerlux-luxemburg@8ca1846d78ea697c17b5f9d5f04ef13085c7a288/powertv
+    steps:
+      - name: Wait for public production alias
+        shell: bash
+        run: |
+          set -euo pipefail
+          ok=0
+          for attempt in $(seq 1 30); do
+            code=$(curl -L -sS -o /tmp/home -w '%{http_code}' --max-time 20 "$BASE/" || true)
+            if [ "$code" = "200" ] && grep -q 'East vs West 26' /tmp/home; then
+              ok=1
+              echo "Alias ready on attempt $attempt"
+              break
+            fi
+            echo "attempt=$attempt http=$code"
+            sleep 5
+          done
+          test "$ok" = "1"
+
+      - name: Verify homepage composition
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -LfsS --max-time 20 "$BASE/" -o /tmp/home
+          grep -q 'powertv-evw-live-eristda000-2732s-projects.vercel.app' /tmp/home
+          grep -q 'index-qo0EwjoB.js' /tmp/home
+          grep -q 'evw-growth.js' /tmp/home
+          grep -q 'East vs West 26' /tmp/home
+
+      - name: Verify authentic PowerTV bundle and EVW layer
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -LfsS --max-time 30 "$CDN/assets/index-qo0EwjoB.js" -o /tmp/app.js
+          curl -LfsS --max-time 20 "$CDN/evw-growth.js" -o /tmp/evw.js
+          grep -q 'PowerLux Associates' /tmp/app.js
+          grep -q 'UC3Dw8OYsWmZqrM1qBBZUMhQ' /tmp/evw.js
+          grep -q 'UCIEjGMfXbN4LFYSnV8qSgAQ' /tmp/evw.js
+          grep -q 'UCAH2krcji9uc3gYSqa33Zyw' /tmp/evw.js
+
+      - name: Verify EVW landing page and SEO surfaces
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -LfsS --max-time 20 "$BASE/east-vs-west/" -o /tmp/evw-page
+          curl -LfsS --max-time 20 "$BASE/robots.txt" -o /tmp/robots
+          curl -LfsS --max-time 20 "$BASE/sitemap.xml" -o /tmp/sitemap
+          grep -q 'EAST vs WEST' /tmp/evw-page
+          grep -q 'UC3Dw8OYsWmZqrM1qBBZUMhQ' /tmp/evw-page
+          grep -q 'UCIEjGMfXbN4LFYSnV8qSgAQ' /tmp/evw-page
+          grep -q 'UCAH2krcji9uc3gYSqa33Zyw' /tmp/evw-page
+          grep -q 'live.evwsports.com' /tmp/evw-page
+          grep -q 'Sitemap:' /tmp/robots
+          grep -q 'east-vs-west' /tmp/sitemap
+          echo 'POWERTV_PUBLIC_SMOKE=PASS'
