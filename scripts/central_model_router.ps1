@@ -41,11 +41,16 @@ function Resolve-CentralModelProfile {
     default { [Environment]::GetEnvironmentVariable('CENTRAL_OLLAMA_STANDARD_MODEL') }
   }
 
+  # Hardware-aware default policy for the verified CENTRAL node (13.94 GB RAM):
+  # - qwen3:4b-instruct stays the low-latency default for routine work.
+  # - qwen3.5:9b is reserved for explicit deep/complex work.
+  # - qwen3:1.7b remains only a last-resort fallback after a 0/3 local benchmark result.
+  # Larger models require an explicit environment override after a new hardware review.
   $candidates = switch ($profileName) {
-    'fast' { @($envOverride,'qwen3:1.7b','qwen3:4b-instruct','qwen3.5:4b') }
-    'critic' { @($envOverride,'qwen3:1.7b','qwen3.5:4b','qwen3:4b-instruct') }
-    'deep' { @($envOverride,'qwen3.5:27b','qwen3:30b-a3b','qwen3:32b','qwen3:14b','qwen3.5:9b','qwen3:8b','qwen3:4b-instruct') }
-    default { @($envOverride,'qwen3.5:9b','qwen3:8b','qwen3:4b-instruct','qwen3.5:4b','qwen3:1.7b') }
+    'fast' { @($envOverride,'qwen3:4b-instruct','qwen3.5:4b','qwen3:1.7b') }
+    'critic' { @($envOverride,'qwen3:4b-instruct','qwen3.5:4b','qwen3:1.7b') }
+    'deep' { @($envOverride,'qwen3.5:9b','qwen3:8b','qwen3:4b-instruct','qwen3.5:4b','qwen3:1.7b') }
+    default { @($envOverride,'qwen3:4b-instruct','qwen3.5:4b','qwen3:8b','qwen3.5:9b','qwen3:1.7b') }
   }
   $candidates += @($ConfiguredModel,$DetectedModel)
 
