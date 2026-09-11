@@ -10,7 +10,8 @@ $files = @(
   'scripts/central_model_pull.ps1',
   'scripts/central_context_capsule.ps1',
   'scripts/central_obsidian_rag_v2.ps1',
-  'scripts/central_local_agent_team.ps1'
+  'scripts/central_local_agent_team.ps1',
+  'scripts/start-central-workshop.ps1'
 )
 
 foreach ($rel in $files) {
@@ -20,6 +21,14 @@ foreach ($rel in $files) {
   [void][System.Management.Automation.Language.Parser]::ParseFile($path,[ref]$tokens,[ref]$errors)
   if ($errors.Count -gt 0) { throw "PowerShell parse errors in ${rel}: $($errors[0].Message)" }
 }
+
+$startSource = Get-Content -LiteralPath (Join-Path $root 'scripts/start-central-workshop.ps1') -Raw
+if ($startSource -notmatch 'function Get-CentralRepoHead') { throw 'Workshop start script is missing bounded repo-head restart detection.' }
+if ($startSource -notmatch '\$headBeforeRunner\s*=\s*Get-CentralRepoHead') { throw 'Workshop start script does not capture HEAD before the bridge runner.' }
+if ($startSource -notmatch '\$headAfterRunner\s*=\s*Get-CentralRepoHead') { throw 'Workshop start script does not capture HEAD after the bridge runner.' }
+if ($startSource -notmatch '\$headBeforeRunner\s*-ne\s*\$headAfterRunner') { throw 'Workshop start script does not gate self-relaunch on an actual repo HEAD change.' }
+if ($startSource -notmatch '-not\s+\$Once') { throw 'Workshop self-relaunch must be disabled for one-shot verification runs.' }
+if ($startSource -notmatch 'Start-Process\s+-FilePath\s+\$pwsh\.Source') { throw 'Workshop start script is missing the bounded pwsh self-relaunch.' }
 
 . (Join-Path $root 'scripts/central_context_capsule.ps1')
 . (Join-Path $root 'scripts/central_obsidian_rag_v2.ps1')
@@ -35,6 +44,30 @@ $elapsedProbe = Get-CentralBenchmarkElapsedTotal -TaskResults @(
   [pscustomobject]@{ elapsed_ms=[long]29 }
 )
 if ($elapsedProbe -ne 40) { throw "Benchmark elapsed aggregation is wrong: $elapsedProbe" }
+
+# Prove the router's Ollama override only enables native thinking for explicit deep Qwen3.5 9B calls.
+$script:CapturedOllamaBody = $null
+function Invoke-RestMethod {
+  param(
+    [string]$Method,
+    [string]$Uri,
+    [string]$ContentType,
+    [string]$Body,
+    [int]$TimeoutSec
+  )
+  $script:CapturedOllamaBody = $Body | ConvertFrom-Json
+  return [pscustomobject]@{ response='FINAL_OK'; thinking='stubbed private reasoning' }
+}
+
+$deepOut = Invoke-CentralOllamaAgent -OllamaUrl 'http://127.0.0.1:9' -Model 'qwen3.5:9b' -Prompt "Project: central`nMode: deep`nObjective: test" -MaxTokens 180 -ContextTokens 3328 -TimeoutSec 120
+if ($deepOut -ne 'FINAL_OK') { throw 'Deep Ollama override did not return the final response.' }
+if (-not [bool]$script:CapturedOllamaBody.think) { throw 'Deep qwen3.5:9b must use native Ollama thinking.' }
+if ([int]$script:CapturedOllamaBody.options.num_predict -lt 384) { throw 'Deep qwen3.5:9b thinking budget is too small to reliably emit a final answer.' }
+
+$standardOut = Invoke-CentralOllamaAgent -OllamaUrl 'http://127.0.0.1:9' -Model 'qwen3:4b-instruct' -Prompt "Project: central`nMode: analysis`nObjective: test" -MaxTokens 180 -ContextTokens 3328 -TimeoutSec 120
+if ($standardOut -ne 'FINAL_OK') { throw 'Standard Ollama override did not return the final response.' }
+if ([bool]$script:CapturedOllamaBody.think) { throw 'Routine qwen3:4b-instruct must remain non-thinking for latency.' }
+Remove-Item Function:\Invoke-RestMethod -Force
 
 # Prove bounded PowerShell capability dispatch happens before any model/objective/RAG path.
 . (Join-Path $root 'scripts/central_local_agent_team.ps1')

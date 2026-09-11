@@ -114,4 +114,35 @@ if (-not (Test-Path -LiteralPath $runner -PathType Leaf)) {
   throw "Bridge runner not found: $runner"
 }
 
+function Get-CentralRepoHead {
+  try {
+    $head = (& git -C $repoRoot rev-parse HEAD 2>$null | Out-String).Trim()
+    if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($head)) { return $head }
+  } catch {}
+  return $null
+}
+
+# A safe repo update intentionally exits the bridge after a runtime-impacting fast-forward.
+# Keep a bounded self-relaunch fallback here so recovery does not depend solely on the
+# supervisor seeing a process transition at exactly the right moment.
+$headBeforeRunner = Get-CentralRepoHead
 & $runner -Once:$Once -PollSeconds $PollSeconds
+$headAfterRunner = Get-CentralRepoHead
+
+if (-not $Once -and
+    -not [string]::IsNullOrWhiteSpace($headBeforeRunner) -and
+    -not [string]::IsNullOrWhiteSpace($headAfterRunner) -and
+    $headBeforeRunner -ne $headAfterRunner) {
+  $pwsh = Get-Command pwsh -ErrorAction SilentlyContinue
+  if ($null -ne $pwsh) {
+    Write-Host "Repository changed while bridge was running ($headBeforeRunner -> $headAfterRunner). Relaunching updated CENTRAL runtime."
+    $args = @('-NoProfile','-ExecutionPolicy','Bypass','-File',$PSCommandPath,'-PollSeconds',[string]$PollSeconds)
+    if ($IsWindows) {
+      Start-Process -FilePath $pwsh.Source -ArgumentList $args -WindowStyle Hidden | Out-Null
+    } else {
+      Start-Process -FilePath $pwsh.Source -ArgumentList $args | Out-Null
+    }
+  } else {
+    Write-Warning 'Repository changed but pwsh was not found for bounded self-relaunch. Supervisor must recover the bridge.'
+  }
+}
