@@ -1,12 +1,6 @@
 name: PowerTV EVW canonical release
 
 on:
-  push:
-    branches:
-      - feature/powertv-vercel-migration
-    paths:
-      - 'powertv/**'
-      - '.github/workflows/powertv-evw-release.yml'
   workflow_dispatch:
 
 permissions:
