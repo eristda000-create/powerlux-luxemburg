@@ -39,6 +39,52 @@ function Get-CentralPayloadStringSafe {
   return ''
 }
 
+function Get-CentralCapabilityMode {
+  param([Parameter(Mandatory=$true)][object]$Payload)
+  $mode = (Get-CentralPayloadStringSafe -Payload $Payload -Name 'mode').Trim().ToLowerInvariant()
+  if ($mode -in @('hardware_inventory','lab_sync','model_benchmark','model_pull')) { return $mode }
+  return ''
+}
+
+function Invoke-CentralDirectCapability {
+  param(
+    [Parameter(Mandatory=$true)][object]$Payload,
+    [Parameter(Mandatory=$true)][string]$Mode,
+    [string]$ObsidianVault,
+    [Parameter(Mandatory=$true)][string]$OllamaUrl
+  )
+
+  switch ($Mode) {
+    'hardware_inventory' {
+      if ($null -eq (Get-Command Get-CentralHardwareInventory -ErrorAction SilentlyContinue)) { throw 'Hardware inventory helper is unavailable.' }
+      $capResult = Get-CentralHardwareInventory -OllamaUrl $OllamaUrl
+      return [ordered]@{ action='local_agent_team'; performance_profile='powershell_capability_v2'; capability_dispatch='direct_pre_reasoning'; mode=$Mode; result=$capResult; access=@{ arbitrary_shell=$false; capability='bounded_hardware_read' } }
+    }
+    'lab_sync' {
+      if ($null -eq (Get-Command Sync-CentralLabVault -ErrorAction SilentlyContinue)) { throw 'CENTRAL LAB sync helper is unavailable.' }
+      $capResult = Sync-CentralLabVault -ObsidianVault $ObsidianVault
+      return [ordered]@{ action='local_agent_team'; performance_profile='powershell_capability_v2'; capability_dispatch='direct_pre_reasoning'; mode=$Mode; result=$capResult; access=@{ arbitrary_shell=$false; capability='allowlisted_git_lab_sync' } }
+    }
+    'model_benchmark' {
+      if ($null -eq (Get-Command Invoke-CentralModelBenchmark -ErrorAction SilentlyContinue)) { throw 'Model benchmark helper is unavailable.' }
+      $requestedModels = @()
+      try {
+        if ($null -ne $Payload.PSObject.Properties['models']) { $requestedModels=@($Payload.models | ForEach-Object { [string]$_ }) }
+      } catch {}
+      $capResult = Invoke-CentralModelBenchmark -OllamaUrl $OllamaUrl -Models $requestedModels
+      return [ordered]@{ action='local_agent_team'; performance_profile='powershell_capability_v2'; capability_dispatch='direct_pre_reasoning'; mode=$Mode; result=$capResult; access=@{ arbitrary_shell=$false; capability='bounded_model_benchmark' } }
+    }
+    'model_pull' {
+      if ($null -eq (Get-Command Start-CentralOllamaModelPull -ErrorAction SilentlyContinue)) { throw 'Model pull helper is unavailable.' }
+      $modelToPull = Get-CentralPayloadStringSafe -Payload $Payload -Name 'model_to_pull'
+      if ([string]::IsNullOrWhiteSpace($modelToPull)) { throw 'model_pull requires payload.model_to_pull.' }
+      $capResult = Start-CentralOllamaModelPull -Model $modelToPull -OllamaUrl $OllamaUrl
+      return [ordered]@{ action='local_agent_team'; performance_profile='powershell_capability_v2'; capability_dispatch='direct_pre_reasoning'; mode=$Mode; result=$capResult; access=@{ arbitrary_shell=$false; capability='allowlisted_nonblocking_model_pull' } }
+    }
+    default { throw "Unsupported direct capability mode: $Mode" }
+  }
+}
+
 function Invoke-CentralLocalAgentTeam {
   param(
     [Parameter(Mandatory=$true)][object]$Payload,
@@ -49,34 +95,15 @@ function Invoke-CentralLocalAgentTeam {
     [string]$DetectedModel
   )
 
+  # Direct PowerShell capabilities are dispatched before JSON cloning, RAG, model routing,
+  # analyst/guardian reasoning, or local autonomy. They must never consume an Ollama reasoning timeout.
+  $capabilityMode = Get-CentralCapabilityMode -Payload $Payload
+  if (-not [string]::IsNullOrWhiteSpace($capabilityMode)) {
+    return Invoke-CentralDirectCapability -Payload $Payload -Mode $capabilityMode -ObsidianVault $ObsidianVault -OllamaUrl $OllamaUrl
+  }
+
   $effectivePayload = $Payload
   try { $effectivePayload = $Payload | ConvertTo-Json -Depth 40 | ConvertFrom-Json } catch {}
-
-  $specialMode = (Get-CentralPayloadStringSafe -Payload $effectivePayload -Name 'mode').Trim().ToLowerInvariant()
-  switch ($specialMode) {
-    'hardware_inventory' {
-      if ($null -eq (Get-Command Get-CentralHardwareInventory -ErrorAction SilentlyContinue)) { throw 'Hardware inventory helper is unavailable.' }
-      return [ordered]@{ action='local_agent_team'; performance_profile='powershell_capability_v1'; mode=$specialMode; result=(Get-CentralHardwareInventory -OllamaUrl $OllamaUrl); access=@{ arbitrary_shell=$false; capability='bounded_hardware_read' } }
-    }
-    'lab_sync' {
-      if ($null -eq (Get-Command Sync-CentralLabVault -ErrorAction SilentlyContinue)) { throw 'CENTRAL LAB sync helper is unavailable.' }
-      return [ordered]@{ action='local_agent_team'; performance_profile='powershell_capability_v1'; mode=$specialMode; result=(Sync-CentralLabVault -ObsidianVault $ObsidianVault); access=@{ arbitrary_shell=$false; capability='allowlisted_git_lab_sync' } }
-    }
-    'model_benchmark' {
-      if ($null -eq (Get-Command Invoke-CentralModelBenchmark -ErrorAction SilentlyContinue)) { throw 'Model benchmark helper is unavailable.' }
-      $requestedModels = @()
-      try {
-        if ($null -ne $effectivePayload.PSObject.Properties['models']) { $requestedModels=@($effectivePayload.models | ForEach-Object { [string]$_ }) }
-      } catch {}
-      return [ordered]@{ action='local_agent_team'; performance_profile='powershell_capability_v1'; mode=$specialMode; result=(Invoke-CentralModelBenchmark -OllamaUrl $OllamaUrl -Models $requestedModels); access=@{ arbitrary_shell=$false; capability='bounded_model_benchmark' } }
-    }
-    'model_pull' {
-      if ($null -eq (Get-Command Start-CentralOllamaModelPull -ErrorAction SilentlyContinue)) { throw 'Model pull helper is unavailable.' }
-      $modelToPull = Get-CentralPayloadStringSafe -Payload $effectivePayload -Name 'model_to_pull'
-      if ([string]::IsNullOrWhiteSpace($modelToPull)) { throw 'model_pull requires payload.model_to_pull.' }
-      return [ordered]@{ action='local_agent_team'; performance_profile='powershell_capability_v1'; mode=$specialMode; result=(Start-CentralOllamaModelPull -Model $modelToPull -OllamaUrl $OllamaUrl); access=@{ arbitrary_shell=$false; capability='allowlisted_nonblocking_model_pull' } }
-    }
-  }
 
   if ($null -ne (Get-Command Resolve-CentralModelProfile -ErrorAction SilentlyContinue)) {
     $explicitModel = Get-CentralPayloadStringSafe -Payload $effectivePayload -Name 'model'
