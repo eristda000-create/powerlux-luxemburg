@@ -83,6 +83,7 @@ function Invoke-CentralSafeRepoUpdate {
       origin = $origin
       before = $before
       after = $before
+      repo_changed = $false
       changed = $false
       changed_files = @()
       runtime_impacting_files = @()
@@ -122,7 +123,9 @@ function Invoke-CentralSafeRepoUpdate {
     origin = $origin
     before = $before
     after = $after
-    changed = $true
+    repo_changed = $true
+    changed = $restartRequired
+    changed_semantics = 'runtime_restart_compatibility'
     changed_files = $changedFiles
     runtime_impacting_files = $runtimeImpactingFiles
     restart_required = $restartRequired
