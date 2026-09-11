@@ -5,6 +5,27 @@
   const OFFICIAL_CHANNEL = 'UC3Dw8OYsWmZqrM1qBBZUMhQ';
   const RYAN_CHANNEL = 'UCIEjGMfXbN4LFYSnV8qSgAQ';
   const VOA_CHANNEL = 'UCAH2krcji9uc3gYSqa33Zyw';
+  const LEGACY_ASSET_CDN = 'https://cdn.jsdelivr.net/gh/eristda000-create/powerlux-luxemburg@8ca1846d78ea697c17b5f9d5f04ef13085c7a288/powertv/';
+  const LEGACY_MEDIA = /^(?:\/?)(associate-[^/?#]+\.(?:png|jpe?g)|powertv-logo\.jpg)$/i;
+
+  function patchLegacyAssets() {
+    document.querySelectorAll('img[src]').forEach((img) => {
+      const raw = (img.getAttribute('src') || '').trim();
+      const match = raw.match(LEGACY_MEDIA);
+      if (match) img.setAttribute('src', LEGACY_ASSET_CDN + match[1]);
+    });
+    document.querySelectorAll('source[srcset],img[srcset]').forEach((node) => {
+      const raw = (node.getAttribute('srcset') || '').trim();
+      if (!raw) return;
+      const rewritten = raw.split(',').map((candidate) => {
+        const parts = candidate.trim().split(/\s+/);
+        const match = (parts[0] || '').match(LEGACY_MEDIA);
+        if (match) parts[0] = LEGACY_ASSET_CDN + match[1];
+        return parts.join(' ');
+      }).join(', ');
+      if (rewritten !== raw) node.setAttribute('srcset', rewritten);
+    });
+  }
 
   function localStart() {
     try {
@@ -90,8 +111,7 @@
     for (const el of candidates) {
       const text = (el.textContent || '').replace(/\s+/g, ' ').trim();
       if (text.includes('Entdecken') && text.includes('Live & Events') && text.includes('Sportarten')) {
-        const nav = el.closest('nav') || el;
-        return nav;
+        return el.closest('nav') || el;
       }
     }
     const logo = Array.from(document.images).find(img => (img.alt || '').toLowerCase().includes('powertv'));
@@ -108,6 +128,7 @@
 
   function ensureMounted() {
     document.querySelectorAll('.evw-sticky-link').forEach(el => el.remove());
+    patchLegacyAssets();
     tagLegacyReplay();
 
     let root = document.getElementById('ptv-command-center');
@@ -115,10 +136,10 @@
     if (!anchor || !anchor.parentElement) return;
 
     if (!root) root = build();
-    const expectedNext = anchor.nextElementSibling;
-    if (expectedNext !== root) {
+    if (anchor.nextElementSibling !== root) {
       try { anchor.insertAdjacentElement('afterend', root); } catch (_) {}
     }
+    patchLegacyAssets();
   }
 
   function tick() {
@@ -134,6 +155,6 @@
 
   schedule();
   const observer = new MutationObserver(schedule);
-  observer.observe(document.documentElement, { childList: true, subtree: true });
+  observer.observe(document.documentElement, { childList: true, subtree: true, attributes: true, attributeFilter: ['src','srcset'] });
   setInterval(() => { ensureMounted(); tick(); }, 1200);
 })();
