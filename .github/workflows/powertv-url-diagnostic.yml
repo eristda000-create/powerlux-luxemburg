@@ -1,0 +1,33 @@
+name: PowerTV URL Diagnostic
+
+on:
+  push:
+    branches: [chore/powertv-live-smoke]
+    paths: ['.github/workflows/powertv-url-diagnostic.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Probe Vercel candidate URLs
+        shell: bash
+        run: |
+          set -uo pipefail
+          urls=(
+            'https://powertv-evw-live.vercel.app/'
+            'https://powertv-evw-live-eristda000-2732s-projects.vercel.app/'
+            'https://powertv-evw-live-45ectl5bj-eristda000-2732s-projects.vercel.app/'
+            'https://powertv-evw-live-ad377oa50-eristda000-2732s-projects.vercel.app/'
+          )
+          for url in "${urls[@]}"; do
+            echo "=== $url ==="
+            curl -L -sS --max-time 20 -D /tmp/h -o /tmp/b -w 'HTTP=%{http_code} FINAL=%{url_effective}\n' "$url" || true
+            grep -Ei '^(location|x-vercel-id|server|content-type|www-authenticate):' /tmp/h || true
+            echo 'BODY:'
+            head -c 300 /tmp/b || true
+            echo
+          done
