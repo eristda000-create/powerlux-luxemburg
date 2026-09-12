@@ -29,7 +29,7 @@ function Resolve-CentralModelProfile {
   )
 
   $profileName = ([string]$Profile).Trim().ToLowerInvariant()
-  if ($profileName -notin @('fast','standard','deep','critic')) { $profileName = 'standard' }
+  if ($profileName -notin @('fast','standard','deep','critic','code','vision')) { $profileName = 'standard' }
 
   $models = @(Get-CentralOllamaModelNames -OllamaUrl $OllamaUrl)
   $generativeModels = @($models | Where-Object { Test-CentralGenerativeModelName $_ })
@@ -38,19 +38,24 @@ function Resolve-CentralModelProfile {
     'fast' { [Environment]::GetEnvironmentVariable('CENTRAL_OLLAMA_FAST_MODEL') }
     'deep' { [Environment]::GetEnvironmentVariable('CENTRAL_OLLAMA_DEEP_MODEL') }
     'critic' { [Environment]::GetEnvironmentVariable('CENTRAL_OLLAMA_CRITIC_MODEL') }
+    'code' { [Environment]::GetEnvironmentVariable('CENTRAL_OLLAMA_CODE_MODEL') }
+    'vision' { [Environment]::GetEnvironmentVariable('CENTRAL_OLLAMA_VISION_MODEL') }
     default { [Environment]::GetEnvironmentVariable('CENTRAL_OLLAMA_STANDARD_MODEL') }
   }
 
-  # Hardware-aware default policy for the verified CENTRAL node (13.94 GB RAM):
-  # - qwen3:4b-instruct stays the low-latency default for routine work.
-  # - qwen3.5:9b is reserved for explicit deep/complex work.
-  # - qwen3:1.7b remains only a last-resort fallback.
-  # Larger models require an explicit environment override after a new hardware review.
+  # Hardware-aware diversified policy for the verified CENTRAL node (13.94 GB RAM / 4 cores):
+  # - only one heavyweight model is expected in memory at a time;
+  # - Qwen remains the generalist family;
+  # - DeepSeek is the independent critic/reasoner;
+  # - Qwen Coder is the coding specialist;
+  # - Gemma 3 is the second-opinion / multimodal-capable specialist.
   $candidates = switch ($profileName) {
-    'fast' { @($envOverride,'qwen3:4b-instruct','qwen3.5:4b','qwen3:1.7b') }
-    'critic' { @($envOverride,'qwen3:4b-instruct','qwen3.5:4b','qwen3:1.7b') }
-    'deep' { @($envOverride,'qwen3.5:9b','qwen3:8b','qwen3:4b-instruct','qwen3.5:4b','qwen3:1.7b') }
-    default { @($envOverride,'qwen3:4b-instruct','qwen3.5:4b','qwen3:8b','qwen3.5:9b','qwen3:1.7b') }
+    'fast' { @($envOverride,'qwen3.5:4b','qwen3:4b-instruct','qwen3:1.7b') }
+    'critic' { @($envOverride,'deepseek-r1:7b','gemma3:4b','qwen3.5:4b','qwen3:4b-instruct','qwen3:1.7b') }
+    'deep' { @($envOverride,'qwen3.5:9b','deepseek-r1:7b','qwen3:4b-instruct','qwen3.5:4b','qwen3:1.7b') }
+    'code' { @($envOverride,'qwen2.5-coder:7b','qwen3.5:9b','qwen3:4b-instruct','qwen3.5:4b','qwen3:1.7b') }
+    'vision' { @($envOverride,'gemma3:4b','qwen3.5:9b','qwen3.5:4b','qwen3:4b-instruct') }
+    default { @($envOverride,'qwen3:4b-instruct','qwen3.5:4b','gemma3:4b','qwen3.5:9b','qwen3:1.7b') }
   }
   $candidates += @($ConfiguredModel,$DetectedModel)
 
@@ -74,22 +79,21 @@ function Get-CentralRecommendedProfile {
   param([object]$Payload)
   if ($null -ne $Payload.PSObject.Properties['model_profile']) {
     $requested = ([string]$Payload.model_profile).Trim().ToLowerInvariant()
-    if ($requested -in @('fast','standard','deep','critic')) { return $requested }
+    if ($requested -in @('fast','standard','deep','critic','code','vision')) { return $requested }
   }
 
   $mode = ''
   if ($null -ne $Payload.PSObject.Properties['mode']) { $mode = ([string]$Payload.mode).Trim().ToLowerInvariant() }
+  if ($mode -in @('coding','code','implementation','bugfix','debug','refactor','code_review')) { return 'code' }
+  if ($mode -in @('vision','image_analysis','screenshot','multimodal')) { return 'vision' }
   if ($mode -in @('deep','architecture','strategy','research_synthesis','complex_analysis')) { return 'deep' }
-  if ($mode -in @('critic','qa','verification','guard')) { return 'critic' }
+  if ($mode -in @('critic','qa','verification','guard','second_opinion')) { return 'critic' }
   if ($mode -in @('fast','extract','classify','micro')) { return 'fast' }
   return 'standard'
 }
 
 # Override the core Ollama caller after central_local_agent_team_core.ps1 has been dot-sourced.
-# This keeps routine work low-latency while giving only explicit deep Qwen3.5 9B runs
-# native Ollama thinking. The deep budget is intentionally bounded for the verified
-# 13.94 GB / 4-core desktop so thinking still leaves room for a final answer inside
-# the runtime window.
+# Routine work stays low-latency while explicit deep Qwen3.5 9B work gets native thinking.
 function Invoke-CentralOllamaAgent {
   param(
     [Parameter(Mandatory=$true)][string]$OllamaUrl,
@@ -123,7 +127,7 @@ function Invoke-CentralOllamaAgent {
     prompt = $Prompt
     stream = $false
     think = [bool]$useThinking
-    keep_alive = '10m'
+    keep_alive = '5m'
     options = @{
       temperature = $temperature
       num_predict = $effectiveMaxTokens
@@ -140,5 +144,3 @@ function Invoke-CentralOllamaAgent {
 
   return $final
 }
-
-# Runtime refresh marker: reload the bounded PowerTV Vercel helper in the persistent CENTRAL workshop.

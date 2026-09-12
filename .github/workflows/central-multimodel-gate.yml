@@ -1,0 +1,24 @@
+name: CENTRAL Multimodel Autostart Gate
+
+on:
+  pull_request:
+    paths:
+      - 'scripts/central_model_router.ps1'
+      - 'scripts/central_model_pull.ps1'
+      - 'scripts/central_supervisor.ps1'
+      - 'scripts/install-central-workshop-autostart.ps1'
+      - 'scripts/test-central-multimodel.ps1'
+      - '.github/workflows/central-multimodel-gate.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify diversified model routing and self-healing pool
+        shell: pwsh
+        run: ./scripts/test-central-multimodel.ps1
