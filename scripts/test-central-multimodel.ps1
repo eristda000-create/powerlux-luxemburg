@@ -33,7 +33,8 @@ $cases = @{
   fast = 'qwen3.5:4b'
   standard = 'qwen3:4b-instruct'
   deep = 'qwen3.5:9b'
-  critic = 'deepseek-r1:7b'
+  critic = 'gemma3:4b'
+  independent = 'deepseek-r1:7b'
   code = 'qwen2.5-coder:7b'
   vision = 'gemma3:4b'
 }
@@ -46,7 +47,9 @@ $modeCases = @{
   bugfix = 'code'
   code_review = 'code'
   screenshot = 'vision'
-  second_opinion = 'critic'
+  second_opinion = 'independent'
+  independent_review = 'independent'
+  critic = 'critic'
   strategy = 'deep'
   extract = 'fast'
 }
@@ -63,6 +66,11 @@ if ($supervisorText -notmatch 'otherSupervisors') { throw 'Supervisor singleton 
 if ($supervisorText -notmatch '\$nextModel\s*=\s*\[string\]\$missing\[0\]') { throw 'Sequential model-pool next-model selection is missing.' }
 if ($supervisorText -notmatch 'Get-CentralModelManagerProcesses') { throw 'Model-manager process serialization is missing.' }
 if ($supervisorText -match "'kimi-k3'") { throw 'Kimi K3 must not be auto-pulled on the 13.94 GB local node.' }
+
+$routerText = Get-Content -LiteralPath $router -Raw
+if ($routerText -notmatch "'critic' \{ @\(\$envOverride,'gemma3:4b'") { throw 'Routine critic must prefer Gemma 3 4B.' }
+if ($routerText -notmatch "'independent' \{ @\(\$envOverride,'deepseek-r1:7b'") { throw 'Independent review must prefer DeepSeek R1 7B.' }
+if ($routerText -notmatch '\$isDeepSeek') { throw 'DeepSeek-specific runtime budget is missing.' }
 
 $pullText = Get-Content -LiteralPath $pull -Raw
 foreach ($model in @('deepseek-r1:7b','qwen2.5-coder:7b','gemma3:4b')) {
