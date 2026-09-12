@@ -13,7 +13,24 @@ $statusDir = Join-Path $HOME '.central'
 $statusPath = Join-Path $statusDir 'supervisor-status.json'
 $ollamaUrl = if ([string]::IsNullOrWhiteSpace($env:OLLAMA_URL)) { 'http://127.0.0.1:11434' } else { $env:OLLAMA_URL.TrimEnd('/') }
 $fastModel = [Environment]::GetEnvironmentVariable('CENTRAL_OLLAMA_FAST_MODEL')
-if ([string]::IsNullOrWhiteSpace($fastModel)) { $fastModel = 'qwen3:1.7b' }
+if ([string]::IsNullOrWhiteSpace($fastModel)) { $fastModel = 'qwen3.5:4b' }
+
+$poolFromEnv = [Environment]::GetEnvironmentVariable('CENTRAL_OLLAMA_MODEL_POOL')
+if ([string]::IsNullOrWhiteSpace($poolFromEnv)) {
+  $modelPool = @(
+    'qwen3.5:4b',
+    'qwen3:4b-instruct',
+    'qwen3.5:9b',
+    'deepseek-r1:7b',
+    'qwen2.5-coder:7b',
+    'gemma3:4b',
+    'nomic-embed-text:latest'
+  )
+} else {
+  $modelPool = @($poolFromEnv -split '[;,]' | ForEach-Object { $_.Trim() } | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -Unique)
+}
+if ($modelPool -notcontains $fastModel) { $modelPool = @($fastModel) + @($modelPool) }
+
 $restartTimes = [System.Collections.Generic.List[datetime]]::new()
 
 if (-not (Test-Path -LiteralPath $startScript -PathType Leaf)) {
@@ -77,40 +94,52 @@ function Get-CentralModelManagerProcesses {
   } catch { return @() }
 }
 
-function Ensure-CentralFastModel {
+function Test-CentralModelInstalled {
+  param([string]$Requested,[string[]]$Installed)
+  return [bool]($Installed | Where-Object { $_ -eq $Requested -or $_ -like "$Requested*" } | Select-Object -First 1)
+}
+
+function Ensure-CentralModelPool {
   if (-not (Test-CentralOllama)) {
-    return @{ status='ollama_unavailable'; installed=$false; process_ids=@() }
+    return @{ status='ollama_unavailable'; installed=@(); missing=@($modelPool); pulling=$null; process_ids=@() }
   }
 
-  $models = Get-CentralOllamaModels
-  $match = $models | Where-Object { $_ -eq $fastModel -or $_ -like "$fastModel*" } | Select-Object -First 1
-  if (-not [string]::IsNullOrWhiteSpace($match)) {
-    return @{ status='ready'; installed=$true; model=[string]$match; process_ids=@() }
+  $installed = @(Get-CentralOllamaModels)
+  $missing = [System.Collections.Generic.List[string]]::new()
+  foreach ($requested in $modelPool) {
+    if (-not (Test-CentralModelInstalled -Requested $requested -Installed $installed)) { $missing.Add($requested) }
+  }
+
+  if ($missing.Count -eq 0) {
+    return @{ status='ready'; installed=@($installed); missing=@(); pulling=$null; process_ids=@() }
   }
 
   $existing = Get-CentralModelManagerProcesses
   if ($existing.Count -gt 0) {
-    return @{ status='pulling'; installed=$false; model=$fastModel; process_ids=@($existing.ProcessId) }
+    return @{ status='pulling'; installed=@($installed); missing=@($missing); pulling='in_progress'; process_ids=@($existing.ProcessId) }
   }
 
   if (-not (Test-Path -LiteralPath $modelManagerScript -PathType Leaf)) {
-    return @{ status='manager_missing'; installed=$false; model=$fastModel; process_ids=@() }
+    return @{ status='manager_missing'; installed=@($installed); missing=@($missing); pulling=$null; process_ids=@() }
   }
 
   $pwsh = Get-Command pwsh -ErrorAction SilentlyContinue
   if ($null -eq $pwsh) {
-    return @{ status='pwsh_not_found'; installed=$false; model=$fastModel; process_ids=@() }
+    return @{ status='pwsh_not_found'; installed=@($installed); missing=@($missing); pulling=$null; process_ids=@() }
   }
 
+  # Pull exactly one missing model per manager process. The next supervisor cycles
+  # continue the pool after the previous pull exits, avoiding parallel downloads.
+  $nextModel = [string]$missing[0]
   try {
     Start-Process -FilePath $pwsh.Source -ArgumentList @(
-      '-NoProfile','-ExecutionPolicy','Bypass','-File',$modelManagerScript,'-FastModel',$fastModel
+      '-NoProfile','-ExecutionPolicy','Bypass','-File',$modelManagerScript,'-FastModel',$nextModel
     ) -WindowStyle Hidden | Out-Null
     Start-Sleep -Milliseconds 500
     $started = Get-CentralModelManagerProcesses
-    return @{ status='pulling'; installed=$false; model=$fastModel; process_ids=@($started.ProcessId) }
+    return @{ status='pulling'; installed=@($installed); missing=@($missing); pulling=$nextModel; process_ids=@($started.ProcessId) }
   } catch {
-    return @{ status='start_error'; installed=$false; model=$fastModel; error=$_.Exception.Message; process_ids=@() }
+    return @{ status='start_error'; installed=@($installed); missing=@($missing); pulling=$nextModel; error=$_.Exception.Message; process_ids=@() }
   }
 }
 
@@ -148,8 +177,11 @@ function Start-CentralBridgeIfNeeded {
 
 while ($true) {
   $ollamaOk = Start-CentralOllamaIfNeeded
-  $fastModelState = Ensure-CentralFastModel
+  $poolState = Ensure-CentralModelPool
   $bridge = Start-CentralBridgeIfNeeded
+
+  $fastInstalled = $false
+  if ($ollamaOk) { $fastInstalled = Test-CentralModelInstalled -Requested $fastModel -Installed @($poolState.installed) }
 
   $snapshot = [ordered]@{
     timestamp = [DateTimeOffset]::UtcNow.ToString('o')
@@ -157,18 +189,23 @@ while ($true) {
     repo_root = $repoRoot
     ollama = if ($ollamaOk) { 'ok' } else { 'error' }
     fast_model_requested = $fastModel
-    fast_model_status = [string]$fastModelState.status
-    fast_model_installed = [bool]$fastModelState.installed
-    fast_model_active = if ($fastModelState.model) { [string]$fastModelState.model } else { $null }
-    model_manager_process_ids = @($fastModelState.process_ids)
+    fast_model_status = if ($fastInstalled) { 'ready' } else { [string]$poolState.status }
+    fast_model_installed = $fastInstalled
+    fast_model_active = if ($fastInstalled) { $fastModel } else { $null }
+    model_pool_status = [string]$poolState.status
+    model_pool_requested = @($modelPool)
+    model_pool_installed = @($poolState.installed)
+    model_pool_missing = @($poolState.missing)
+    model_pool_pulling = $poolState.pulling
+    model_manager_process_ids = @($poolState.process_ids)
     bridge_running = [bool]$bridge.running
     bridge_started_this_cycle = [bool]$bridge.started
     bridge_process_ids = @($bridge.process_ids)
     restart_budget_used_10m = $restartTimes.Count
     restart_budget_max_10m = $MaxRestartsPer10Minutes
-    note = if ($bridge.reason) { [string]$bridge.reason } elseif ($fastModelState.error) { [string]$fastModelState.error } else { $null }
+    note = if ($bridge.reason) { [string]$bridge.reason } elseif ($poolState.error) { [string]$poolState.error } else { $null }
   }
-  $snapshot | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $statusPath -Encoding UTF8
+  $snapshot | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $statusPath -Encoding UTF8
 
   if ($Once) { break }
   Start-Sleep -Seconds ([Math]::Max(10,$PollSeconds))
