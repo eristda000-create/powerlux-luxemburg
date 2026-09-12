@@ -60,7 +60,8 @@ foreach ($model in @('qwen3.5:4b','qwen3:4b-instruct','qwen3.5:9b','deepseek-r1:
   if (-not $supervisorText.Contains("'$model'")) { throw "Supervisor model pool missing $model" }
 }
 if ($supervisorText -notmatch 'otherSupervisors') { throw 'Supervisor singleton guard is missing.' }
-if ($supervisorText -notmatch 'one missing model per manager process|Pull exactly one missing model') { throw 'Sequential model-pool download guard is missing.' }
+if ($supervisorText -notmatch '\$nextModel\s*=\s*\[string\]\$missing\[0\]') { throw 'Sequential model-pool next-model selection is missing.' }
+if ($supervisorText -notmatch 'Get-CentralModelManagerProcesses') { throw 'Model-manager process serialization is missing.' }
 if ($supervisorText -match "'kimi-k3'") { throw 'Kimi K3 must not be auto-pulled on the 13.94 GB local node.' }
 
 $pullText = Get-Content -LiteralPath $pull -Raw
