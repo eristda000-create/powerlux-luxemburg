@@ -15,6 +15,19 @@ $ollamaUrl = if ([string]::IsNullOrWhiteSpace($env:OLLAMA_URL)) { 'http://127.0.
 $fastModel = [Environment]::GetEnvironmentVariable('CENTRAL_OLLAMA_FAST_MODEL')
 if ([string]::IsNullOrWhiteSpace($fastModel)) { $fastModel = 'qwen3.5:4b' }
 
+# HKCU Run and the Scheduled Task may both fire after logon. Keep one supervisor only.
+if ($IsWindows -and -not $Once) {
+  try {
+    $otherSupervisors = @(Get-CimInstance Win32_Process -ErrorAction Stop | Where-Object {
+      $_.ProcessId -ne $PID -and
+      $_.Name -in @('pwsh.exe','powershell.exe') -and
+      -not [string]::IsNullOrWhiteSpace($_.CommandLine) -and
+      $_.CommandLine -like '*central_supervisor.ps1*'
+    })
+    if ($otherSupervisors.Count -gt 0) { exit 0 }
+  } catch {}
+}
+
 $poolFromEnv = [Environment]::GetEnvironmentVariable('CENTRAL_OLLAMA_MODEL_POOL')
 if ([string]::IsNullOrWhiteSpace($poolFromEnv)) {
   $modelPool = @(
@@ -128,8 +141,6 @@ function Ensure-CentralModelPool {
     return @{ status='pwsh_not_found'; installed=@($installed); missing=@($missing); pulling=$null; process_ids=@() }
   }
 
-  # Pull exactly one missing model per manager process. The next supervisor cycles
-  # continue the pool after the previous pull exits, avoiding parallel downloads.
   $nextModel = [string]$missing[0]
   try {
     Start-Process -FilePath $pwsh.Source -ArgumentList @(
